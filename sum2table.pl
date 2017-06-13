@@ -15,7 +15,10 @@ sum2table - render one or two DeJaGnu sum files as a table
 
 =head1 OPTIONS
 
-B<sum2table> [-h|--help] [--sort=SPEC] SUM_FILE_1 [ SUM_FILE_2 ]
+B<sum2table> [-h|--help]
+             [--sort=SPEC]
+             [--filter=PATTERN]
+             SUM_FILE_1 [ SUM_FILE_2 ]
 
 =head1 SYNOPSIS
 
@@ -85,6 +88,12 @@ When performing a comparison between two summary files, testnames might
 have '(+)' or '(-)' appended to them.  The '(+)' indicates a test that only
 appears in the second summary file, while a '(-)' indicates a test that is
 present in the first, but is missing from the second.
+
+The I<--filter> option allows the user to filter which test results are
+printed.  The filter option can be given multiple times, and test name that
+matches any of the filters will be displayed, all non matching testnames
+are removed from the table.  The value passed to the filter is treated as a
+regular expression.
 
 =cut
 
@@ -397,8 +406,10 @@ Currently undocumented.
 =cut
 
 sub main {
+  my @filters = ();
   my $sort = undef;
-  GetOptions ("sort=s" => \$sort);
+  GetOptions ("sort=s" => \$sort,
+              "filter=s" => \@filters);
 
   if (defined ($sort))
   {
@@ -428,17 +439,47 @@ sub main {
     fill_in_sort_indexes ($sort, \@status_types);
   }
 
+  # Build sorted list of all test names for which we will display results.
   my @all_test_names = (keys (%{$results_1->{-by_testname}}),
                         keys (%{$results_2->{-by_testname}}));
   @all_test_names = sort (@all_test_names);
   @all_test_names = uniq (@all_test_names);
 
+  # Filter the list of test names based on the --filter command line
+  # option(s).
+  if (scalar (@filters) > 0)
+  {
+    my @r;
+
+    @filters = map { qr/$_/ } @filters;
+
+    foreach my $n (@all_test_names)
+    {
+      my $found = false;
+
+      foreach my $re (@filters)
+      {
+        if ($n =~ $re)
+        {
+          $found = true;
+          last;
+        }
+      }
+      push @r, $n if ($found);
+    }
+
+    @all_test_names = @r;
+  }
+
+  # Initialise the list of widths of each columns.
   my @widths = (0);
   foreach (@status_types)
   {
     push @widths, length ($_);
   }
 
+  # Build up the rows of the table, and finish computing the widths of all
+  # of the columns.
   my @rows;
   foreach my $testname (@all_test_names)
   {
@@ -455,11 +496,13 @@ sub main {
     }
   }
 
+  # Sort the rows of the table based on any --sort command line option.
   if (defined ($sort))
   {
     @rows = sort { compare_rows ($a, $b, $sort) } @rows;
   }
 
+  # Build up the printf format string, and print the rows of the table.
   my $format = "|";
   my $div_length = 1;
 

@@ -1,0 +1,292 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+no indirect;
+no autovivification;
+
+#========================================================================#
+
+=pod
+
+=head1 NAME
+
+sum4way - 4 way comparison between 4 summary files
+
+=head1 OPTIONS
+
+B<compare> [-h|--help] NAME1=PATH1 NAME2=PATH2 NAME3=PATH3 NAME4=PATH4
+
+=head1 SYNOPSIS
+
+Imagine a development tree that looks a little like this:
+
+   |
+   |
+   v
+
+   A ------> B
+
+   |
+   |
+   |
+   |
+   v
+
+   C ------> D
+
+   |
+   |
+   v
+
+Where I<A> and I<C> are both revisions on the main development branch,
+while I<B> and I<D> are patched versions based off of A and C respectively.
+
+Further, the same patch set that created B from A was rebased to create D
+from C.
+
+The question then, is did we rebase the patch-set correctly, or did we
+introduce some regressions.  To answer this question we run the full set of
+available tests on all 4 worlds, A, B, C, and D, this script will then
+compare the results.
+
+Some of the issues to consider are this, the patch A to B might cause a
+test to fail, we would then expect the test to fail between C and D, this
+script detects and accepts these regressions.
+
+A new test might be added as part of the patch A to B, this new test might
+pass, or might fail, this script will expect either the same, or a better
+result between C and D.
+
+New tests might be added between A and C, these tests might pass or fail,
+this script will expect the same new tests to appear in D and their results
+should be no worse than they are in C.
+
+In order to identify each component in the above tree then, when specifying
+the path to each gdb summary file a name should also be supplied, this name
+is used when printing the results.
+
+Finally in the above tree NAME1 is A, NAME2 is B, NAME3 is C, and NAME4 is
+D.
+
+=cut
+
+#========================================================================#
+
+use FindBin;
+use lib "$ENV{HOME}/lib";
+use lib "$FindBin::Bin/lib";
+use GiveHelp qw/usage/;         # Allow -h or --help command line options.
+use Boolean;
+use Carp;
+use Carp::Assert;
+use SumFileParser;
+
+#========================================================================#
+
+my ($rev_a, $rev_b, $rev_c, $rev_d) = process_argv (@ARGV);
+
+my @fail_a;
+foreach my $id (keys %{$rev_b->{-results}})
+{
+  # If this is a test that passes on 'B', and...
+  my $r = $rev_b->{-results}->{ $id };
+  next if ($r->is_bad ());
+
+  # ... the test either didn't exist, or used to fail on 'A', then...
+  my $old = $rev_a->{-results}->{ $id };
+  next if (defined ($old) and (not ($old->is_bad ())));
+  my $os = "GONE";
+  $os = $old->get_status () if (defined ($old));
+
+  # ... if the test is not passing on 'D', then...
+  my $new = $rev_d->{-results}->{ $id };
+  next if (defined ($new) and (not ($new->is_bad ())));
+  my $ns = "GONE";
+  $ns = $new->get_status () if (defined ($new));
+
+  # ... we are interested in this test.
+  push @fail_a, { -result => $r,
+                  -string => $os ." -> ". $r->get_status () ." => ". $ns }
+}
+
+my @fail_b;
+foreach my $id (keys %{$rev_c->{-results}})
+{
+  # If this is a test that passes on 'C', and...
+  my $r = $rev_c->{-results}->{ $id };
+  next unless ($r->is_pass ());
+
+  # ... and it has either gone away, or started to fail in 'D', then...
+  my $new = $rev_d->{-results}->{ $id };
+  next if (defined ($new) and not ($new->is_bad ()));
+  my $ts = ((defined ($new)) ? $new->get_status () : "GONE");
+
+  # ... we are interested in this test.
+  push @fail_b, { -result => $r,
+                  -string => $r->get_status () ." -> ". $ts };
+}
+
+##########################################################################
+# Try to identify new UNSUPPORTED tests that have appeared in 'D'.  The
+# idea is that a whole test file will be marked as unsupported, so one
+# UNSUPPORTED test will account for many tests seeming to disappear.
+##########################################################################
+
+my %unsupported;
+foreach my $id (keys %{$rev_d->{-results}})
+{
+  my $r = $rev_d->{-results}->{ $id };
+  next unless ($r->get_status () eq "UNSUPPORTED");
+
+  my $test_path = $r->get_directory () ."/". $r->get_filename ();
+  $unsupported { $test_path } = $r;
+}
+
+foreach my $id (keys %{$rev_b->{-results}})
+{
+  my $r = $rev_b->{-results}->{ $id };
+  next unless ($r->get_status () eq "UNSUPPORTED");
+
+  my $test_path = $r->get_directory () ."/". $r->get_filename ();
+  delete $unsupported{ $test_path };
+}
+
+##########################################################################
+# Now sort all of the test results.
+##########################################################################
+
+@fail_a = sort {
+  $a->{ -result }->get_id () cmp $b->{ -result }->get_id ()
+} @fail_a;
+
+@fail_b = sort {
+  $a->{ -result }->get_id () cmp $b->{ -result }->get_id ()
+} @fail_b;
+
+
+print "The following tests were introduced, or started working\n";
+print "    between ".$rev_a->{-name}." and ".$rev_b->{-name}.
+  ", but are failing on\n";
+print "    ".$rev_d->{-name}.":\n";
+print "    Count = ".scalar (@fail_a)."\n\n";
+foreach my $t (@fail_a)
+{
+  my $str = $t->{ -string };
+  my $t = $t->{ -result };
+  print "   ".$str. " :: ".$t->get_id ()."\n";
+}
+
+print "\n\n\n";
+print "The following tests passed on ".$rev_c->{-name}.", but are failing on\n";
+print "    ".$rev_d->{-name}.":\n";
+print "    Count = ".scalar (@fail_b)."\n\n";
+
+foreach my $t (@fail_b)
+{
+  my $str = $t->{ -string };
+  $t = $t->{ -result };
+  my $test_path = $t->get_directory () ."/". $t->get_filename ();
+  next if (exists $unsupported{ $test_path });
+  print "   ".$str." :: ".$t->get_id ()."\n";
+}
+
+
+#========================================================================#
+
+=pod
+
+=head1 METHODS
+
+The following methods are defined in this script.
+
+=over 4
+
+=cut
+
+#========================================================================#
+
+=pod
+
+=item B<process_argv>
+
+Currently undocumented.
+
+=cut
+
+sub process_argv {
+  my @names_and_paths = @_;
+
+  my @r;
+  foreach my $np (@names_and_paths)
+  {
+    my ($name, $path) = split /=/, $np;
+
+    if (defined ($name)
+          and not (defined ($path))
+          and (-f $name)
+          and (-r $name))
+    {
+      $path = $name;
+      $name = undef;
+    }
+
+    (defined $name) or
+      die "Missing NAME in '$np'\n";
+    (defined $path) or
+      die "Missing PATH in '$np'\n";
+
+    push @r, { -name => $name,
+               -path => $path,
+               -results => load_sum_file ($path) };
+  }
+
+  (scalar (@r) == 4) or
+    die "Expected 4 NAME=PATH pairs on the command line\n";
+  return @r;
+}
+
+#========================================================================#
+
+=pod
+
+=item B<load_sum_file>
+
+Take the filename of a summary file, load the results, and return a
+reference to a hash of the results, the keys of the has are the result ID
+strings, and the hash values are the TestResult object references.
+
+=cut
+
+sub load_sum_file {
+  my $filename = shift;
+
+  my @results = SumFileParser::parse ( $filename );
+
+  my %res;
+  foreach my $r (@results)
+  {
+    if (exists ($res {$r->get_id ()}))
+    {
+      my $old = $res {$r->get_id ()};
+      ($old->get_status () eq $r->get_status ())
+        or warn ("Duplicate test with difference status: '".$r->get_id ().
+                 "' in: ".$filename."\n");
+    }
+    $res {$r->get_id ()} = $r;
+  }
+
+  return \%res;
+}
+
+#========================================================================#
+
+=pod
+
+=back
+
+=head1 AUTHOR
+
+Andrew Burgess, 13 May 2016
+
+=cut

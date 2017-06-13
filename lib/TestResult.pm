@@ -102,6 +102,14 @@ sub get_testname {
   $testname =~ s#\(open '.*(gdb/testsuite/gdb.[^/']+/[^']+)'\)#(open '$1')#;
   $testname =~ s#print characters#print elements#;
   $testname =~ s#with characters set to#with elements set to#;
+  $testname =~ s#(python exec \(open \(').*(gdb.python/py-pp-registration/py-pp-registration.py)'\)#$1 $2'\)#;
+  $testname =~ s#(get python valueof "sep_objfile\.build_id") \([0-9a-f]+\)#$1 \(HASH\)#;
+  $testname =~ s#(python print \(gdb\.lookup_objfile) \("[0-9a-f]+", (by_build_id=True\)\.filename\))#$1 \(HASH\), $2#;
+  $testname =~ s#source .*/(gdb.python/py-completion.py)#source $1#;
+  $testname =~ s#(set env LD_LIBRARY_PATH=).*(gdb.base/print-file-var-dlopen/)#$1$2#;
+  $testname =~ s#(get integer valueof "\$sp") \(\d+\)#$1#;
+  $testname =~ s#.*(gdb\.base/break-fun-addr/break-fun-addr[12]:)#$1#;
+  $testname =~ s#(generate-core-file) .*(gdb\.btrace/gcore/core)#$1 $2#;
 
   $testname =~ s/\s*$//;
 

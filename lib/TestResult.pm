@@ -110,6 +110,9 @@ sub get_testname {
   $testname =~ s#(get integer valueof "\$sp") \(\d+\)#$1#;
   $testname =~ s#.*(gdb\.base/break-fun-addr/break-fun-addr[12]:)#$1#;
   $testname =~ s#(generate-core-file) .*(gdb\.btrace/gcore/core)#$1 $2#;
+  $testname =~ s#(replace: python exec \(open \(').*/(gdb\.python/py-pp-registration\.py'\)\.read \(\)\))#$1$2#;
+  $testname =~ s#(verbose (?:off|on): python exec \(open \(').*/(gdb\.python/py-pp-registration\.py'\)\.read \(\)\))#$1$2#;
+  $testname =~ s#(set env LD_LIBRARY_PATH=).*(gdb/testsuite/gdb.base/):#$1$2#;
 
   $testname =~ s/\s*$//;
 

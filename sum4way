@@ -15,7 +15,7 @@ sum4way - 4 way comparison between 4 summary files
 
 =head1 OPTIONS
 
-B<compare> [-h|--help] NAME1=PATH1 NAME2=PATH2 NAME3=PATH3 NAME4=PATH4
+B<compare> [-h|--help] [-o|--org] NAME1=PATH1 NAME2=PATH2 NAME3=PATH3 NAME4=PATH4
 
 =head1 SYNOPSIS
 
@@ -69,6 +69,9 @@ is used when printing the results.
 Finally in the above tree NAME1 is A, NAME2 is B, NAME3 is C, and NAME4 is
 D.
 
+The optional I<-o> or I<--org> option changes the output format, instead of
+a plain text list, the output is produced in emacs org-mode format.
+
 =cut
 
 #========================================================================#
@@ -77,12 +80,16 @@ use FindBin;
 use lib "$ENV{HOME}/lib";
 use lib "$FindBin::Bin/lib";
 use GiveHelp qw/usage/;         # Allow -h or --help command line options.
-use Boolean;
+use boolean;
 use Carp;
 use Carp::Assert;
 use SumFileParser;
+use Getopt::Long;
 
 #========================================================================#
+
+my $org_format = false;
+GetOptions ("org|o" => \$org_format);
 
 my ($rev_a, $rev_b, $rev_c, $rev_d) = process_argv (@ARGV);
 
@@ -164,31 +171,86 @@ foreach my $id (keys %{$rev_b->{-results}})
   $a->{ -result }->get_id () cmp $b->{ -result }->get_id ()
 } @fail_b;
 
+if ($org_format)
+{
+  print "* Regressions between ".$rev_b->{-name}." and ".$rev_d->{-name}." [/]\n";
+  print ":PROPERTIES:\n";
+  print ":COOKIE_DATA: recursive\n";
+  print ":END:\n";
+  print "  The following tests were introduced, or started working\n";
+  print "  between ".$rev_a->{-name}." and ".$rev_b->{-name}.
+    ", but are failing on ".$rev_d->{-name}.":\n";
+}
+else
+{
 
-print "The following tests were introduced, or started working\n";
-print "    between ".$rev_a->{-name}." and ".$rev_b->{-name}.
-  ", but are failing on\n";
-print "    ".$rev_d->{-name}.":\n";
-print "    Count = ".scalar (@fail_a)."\n\n";
+  print "The following tests were introduced, or started working\n";
+  print "    between ".$rev_a->{-name}." and ".$rev_b->{-name}.
+    ", but are failing on\n";
+  print "    ".$rev_d->{-name}.":\n";
+  print "    Count = ".scalar (@fail_a)."\n\n";
+}
+
+my $prev_test_path = "";
 foreach my $t (@fail_a)
 {
   my $str = $t->{ -string };
   my $t = $t->{ -result };
-  print "   ".$str. " :: ".$t->get_id ()."\n";
+  my $test_path = $t->get_directory () ."/". $t->get_filename ();
+  if ($org_format)
+  {
+    if ($prev_test_path ne $test_path)
+    {
+      print "  + ".$test_path." [/]\n";
+      $prev_test_path = $test_path;
+    }
+    print "    + [ ] ".$str. " :: ".$t->get_id ()."\n";
+  }
+  else
+  {
+    print "   ".$str. " :: ".$t->get_id ()."\n";
+  }
 }
 
-print "\n\n\n";
-print "The following tests passed on ".$rev_c->{-name}.", but are failing on\n";
-print "    ".$rev_d->{-name}.":\n";
-print "    Count = ".scalar (@fail_b)."\n\n";
+if ($org_format)
+{
+  print "\n";
+  print "* Regressions between ".$rev_c->{-name}." and ".$rev_d->{-name}." [/]\n";
+  print ":PROPERTIES:\n";
+  print ":COOKIE_DATA: recursive\n";
+  print ":END:\n";
+  print "  The following tests passed on ".$rev_c->{-name}.", but are failing on\n";
+  print "  ".$rev_d->{-name}.":\n";
+}
+else
+{
+  print "\n\n\n";
+  print "The following tests passed on ".$rev_c->{-name}.", but are failing on\n";
+  print "    ".$rev_d->{-name}.":\n";
+  print "    Count = ".scalar (@fail_b)."\n\n";
+}
 
+$prev_test_path = "";
 foreach my $t (@fail_b)
 {
   my $str = $t->{ -string };
   $t = $t->{ -result };
   my $test_path = $t->get_directory () ."/". $t->get_filename ();
   next if (exists $unsupported{ $test_path });
-  print "   ".$str." :: ".$t->get_id ()."\n";
+  if ($org_format)
+  {
+    if ($prev_test_path ne $test_path)
+    {
+      print "  + ".$test_path." [/]\n";
+      $prev_test_path = $test_path;
+    }
+
+    print "    + [ ] ".$str." :: ".$t->get_id ()."\n";
+  }
+  else
+  {
+    print "   ".$str." :: ".$t->get_id ()."\n";
+  }
 }
 
 

@@ -114,6 +114,7 @@ sub get_testname {
   $testname =~ s#(verbose (?:off|on): python exec \(open \(').*/(gdb\.python/py-pp-registration\.py'\)\.read \(\)\))#$1$2#;
   $testname =~ s#(set env LD_LIBRARY_PATH=).*(gdb/testsuite/gdb.base/):#$1$2#;
   $testname =~ s#"mypid" \(\d+\)#"mypid" \(XXXX\)#;
+  $testname =~ s#threaded: attempt \d+: attach \(pass (\d)\), pending signal catch#threaded: attempt XX: attach \(pass $1\), pending signal catch#;
 
   $testname =~ s/\s*$//;
 

@@ -129,7 +129,32 @@ foreach my $id (keys %{$rev_c->{-results}})
   next if (defined ($new) and not ($new->is_bad ()));
   my $ts = ((defined ($new)) ? $new->get_status () : "GONE");
 
-  # ... we are interested in this test.
+  # ... we are interested in this test, unless, the test already existed on
+  # 'A' and was failing on 'B', which would indicate this is a known
+  # regression.
+  if ((exists ($rev_a->{-results}->{ $id }))
+         and ($rev_a->{-results}->{ $id }->get_status ()
+              eq $r->get_status ()))
+  {
+    my $old = $rev_b->{-results}->{ $id };
+    if ((not (defined ($new)))
+          and (not (defined ($old))))
+    {
+      # This test was removed from 'B' and is also removed from 'D', we
+      # accept this transition to the GONE state.
+      next;
+    }
+
+    if ((defined ($new)) and (defined ($old))
+          and ($new->get_status () eq $old->get_status ()))
+    {
+      # This test ended in the same state in 'D' as it did in 'B', we
+      # assume that we're happy with the state in 'B', so we should also
+      # accept the state in 'D'.
+      next;
+    }
+  }
+
   push @fail_b, { -result => $r,
                   -string => $r->get_status () ." -> ". $ts };
 }

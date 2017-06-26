@@ -15,7 +15,10 @@ sum4way - 4 way comparison between 4 summary files
 
 =head1 OPTIONS
 
-B<compare> [-h|--help] [-o|--org] NAME1=PATH1 NAME2=PATH2 NAME3=PATH3 NAME4=PATH4
+B<compare> [-h|--help]
+           [-o|--org]
+           [-d|--dump-ids]
+           NAME1=PATH1 NAME2=PATH2 NAME3=PATH3 NAME4=PATH4
 
 =head1 SYNOPSIS
 
@@ -72,6 +75,9 @@ D.
 The optional I<-o> or I<--org> option changes the output format, instead of
 a plain text list, the output is produced in emacs org-mode format.
 
+The I<-d> or I<--dump-ids> is for debug only, this dumps a list of all test
+IDs, and can be used to check which IDs the script is finding.
+
 =cut
 
 #========================================================================#
@@ -89,9 +95,17 @@ use Getopt::Long;
 #========================================================================#
 
 my $org_format = false;
-GetOptions ("org|o" => \$org_format);
+my $dump_ids = false;
+GetOptions ("org|o" => \$org_format,
+            "dump-ids|d" => \$dump_ids);
 
 my ($rev_a, $rev_b, $rev_c, $rev_d) = process_argv (@ARGV);
+
+if ($dump_ids)
+{
+  dump_all_ids ($rev_a, $rev_b, $rev_c, $rev_d);
+  exit (0);
+}
 
 my @fail_a;
 foreach my $id (keys %{$rev_b->{-results}})
@@ -290,6 +304,32 @@ The following methods are defined in this script.
 =over 4
 
 =cut
+
+#========================================================================#
+
+=pod
+
+=item B<dump_all_ids>
+
+Dump all IDs from all data sets passed as arguments.  Each ID is prefixed
+with a character 'A', 'B', 'C', or 'D'.
+
+=cut
+
+sub dump_all_ids {
+  my $char = 'A';
+  while (my $rev = shift (@_))
+  {
+    foreach my $id (keys %{$rev->{-results}})
+    {
+      print "$char: $id\n";
+    }
+
+    $char++;
+    ($char eq 'Z') and
+      die "too many data sets";
+  }
+}
 
 #========================================================================#
 

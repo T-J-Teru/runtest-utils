@@ -151,8 +151,8 @@ sub fill_in_sort_indexes {
   foreach my $sort (@{$sort_spec})
   {
     # As we only display the columns that will actuall have results in
-    # them, then check that the sort field column will be appearing in the
-    # results.  If it will not then give an error.
+    # them, so we need to trim out sort specifiers that are not needed, and
+    # also figure out the column indexes for the things we will sort on.
     my $found = false;
     my $index = 1;
     foreach (@{$status_types})
@@ -164,13 +164,19 @@ sub fill_in_sort_indexes {
       }
       $index++;
     }
-    ($found)
-      or die "Sort field '".$sort->{-field}."' does not have any results\n";
-    # Set -INDEX to be the index of the column we'll be sorting on.  Start
-    # at 1 as the first column (column 0) of the table holds the name of
-    # the test file.
-    $sort->{-index} = $index;
+    # Set -index to be the index of the column we'll be sorting on.  Start
+    # at 1 as the first column (column 0 of the table holds the name of the
+    # test file).  If the column is not found in the table then set the
+    # index to undef, we'll filter the sort list below.
+    $sort->{-index} = $found ? $index : undef;
   }
+
+  # Trim out columns where the index is undef, these are columns that will
+  # not appear in our result table.  We need to be careful here not to
+  # change the array reference that SORT_SPEC points to, as SORT_SPEC is
+  # passed by value into this function, and we want our changes to the
+  # referenced array to be seen in the caller.
+  @{$sort_spec} = grep { defined ($_->{-index}) } @{$sort_spec};
 }
 
 #========================================================================#

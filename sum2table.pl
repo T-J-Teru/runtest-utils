@@ -84,6 +84,12 @@ this:
 
   fail,unresolved
 
+If the magic value 'BAD' is used for SPEC then this expands to:
+
+  fail:diff,unresolved:diff,unsupported:diff,untested:diff
+
+which should list all of the negative results at the top.
+
 When performing a comparison between two summary files, testnames might
 have '(+)' or '(-)' appended to them.  The '(+)' indicates a test that only
 appears in the second summary file, while a '(-)' indicates a test that is
@@ -413,6 +419,10 @@ sub main {
 
   if (defined ($sort))
   {
+    if ($sort eq "BAD")
+    {
+      $sort = "fail:diff,unresolved:diff,unsupported:diff,untested:diff";
+    }
     $sort = build_sort_spec ($sort);
   }
 

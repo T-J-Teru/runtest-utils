@@ -88,7 +88,13 @@ If the magic value 'BAD' is used for SPEC then this expands to:
 
   fail:diff,unresolved:diff,unsupported:diff,untested:diff
 
-which should list all of the negative results at the top.
+if two filenames are given, which will list all of the tests that have
+gotten worse at the top.  Alternatively, if 'BAD' is used for SPEC and only
+one filename is given, then this expands to:
+
+  fail:new,unresolved:new,unsupported:new,untested:new
+
+which will list all of the tests with failures at the top.
 
 When performing a comparison between two summary files, testnames might
 have '(+)' or '(-)' appended to them.  The '(+)' indicates a test that only
@@ -319,17 +325,20 @@ sub build_table_columns {
 
   my @columns = ();
   my $suffix = "";
-  if (not (exists ($results_1->{-by_testname}->{$testname})))
+  if (defined ($results_2))
   {
-    $suffix = " (+)";
-  }
-  elsif (not (exists ($results_2->{-by_testname}->{$testname})))
-  {
-    $suffix = " (-)";
-  }
-  else
-  {
-    $suffix = "    ";
+    if (not (exists ($results_1->{-by_testname}->{$testname})))
+    {
+      $suffix = " (+)";
+    }
+    elsif (not (exists ($results_2->{-by_testname}->{$testname})))
+    {
+      $suffix = " (-)";
+    }
+    else
+    {
+      $suffix = "    ";
+    }
   }
   push @columns, { __string__ => $testname.$suffix };
 
@@ -423,22 +432,30 @@ sub main {
   GetOptions ("sort=s" => \$sort,
               "filter=s" => \@filters);
 
+  my $filename = shift @ARGV;
+  (defined $filename) or usage ();
+  my $filename_2 = shift @ARGV;
+
   if (defined ($sort))
   {
     if ($sort eq "BAD")
     {
-      $sort = "fail:diff,unresolved:diff,unsupported:diff,untested:diff";
+      if (defined ($filename_2))
+      {
+        $sort = "fail:diff,unresolved:diff,unsupported:diff,untested:diff";
+      }
+      else
+      {
+        $sort = "fail:new,unresolved:new,unsupported:new,untested:new";
+      }
     }
     $sort = build_sort_spec ($sort);
   }
 
-  my $filename = shift @ARGV;
-  (defined $filename) or usage ();
-
-  my $filename_2 = shift @ARGV;
 
   my $results_1 = process_file ($filename);
-  my $results_2 = process_file ($filename_2);
+  my $results_2 = undef;
+  $results_2 = process_file ($filename_2) if (defined $filename_2);
 
   my @status_types = ();
   foreach (@all_possible_status_types)

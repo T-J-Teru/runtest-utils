@@ -1,0 +1,294 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+no indirect;
+no autovivification;
+
+#========================================================================#
+
+=pod
+
+=head1 NAME
+
+compare-tests - compare two summary files and highlight regressions
+
+=head1 OPTIONS
+
+B<compare-tests> [-h|--help] [-q|--quiet] [-b|--bad-only]
+                 [-c|--collapse-missing-scripts]
+                 SUM-FILE-BEFORE SUM-FILE-AFTER
+
+=head1 SYNOPSIS
+
+Compare the test results in I<SUM-FILE-BEFORE> and I<SUM-FILE-AFTER> and
+show tests that have changed status between the two.
+
+With the I<--quiet> flag then no output is printed, but the script exit
+value still indicates whether anything bad happened.
+
+The flag I<--bad-only> hides all results relating to good test result
+changes, the only thing printed are changes considered bad.
+
+With the I<--collapse-missing-scripts> flag, if a script is entirely
+missing then this is summarised with a single line, rather than listing all
+the tests in the script as transitioning too or from the GONE status.
+
+=head1 EXIT VALUE
+
+The script exists with value 0 if there were no bad status transitions
+between the two result sets.  That means at least all of the same tests run
+(though running more is considered good), and no test regressed.  If
+anything considered bad happened then the script returns value 1.
+
+=cut
+
+#========================================================================#
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use lib "$ENV{HOME}/lib";
+use GiveHelp qw/usage/;         # Allow -h or --help command line options.
+use SumFileParser;
+use List::Util qw/uniq/;
+use Getopt::Long;
+use boolean;
+
+#========================================================================#
+
+exit (main ());
+
+#========================================================================#
+
+=pod
+
+=head1 METHODS
+
+The following methods are defined in this script.
+
+=over 4
+
+=cut
+
+#========================================================================#
+
+=pod
+
+=item B<is_bad_transition>
+
+Take a string that is a test status transition, for example "PASS -> FAIL",
+and return true if the transition is a bad one (for example PASS to FAIL),
+or false, if the transition is a good one (for example FAIL to PASS).
+
+A transition where the status remains the same is never bad, so PASS to
+PASS is not bad, nor is FAIL to FAIL.  A bad transition represents
+something getting worse.
+
+=cut
+
+sub is_bad_transition {
+  my $transition = shift;
+
+  my ($from, $to) = split / -> /, $transition;
+  (defined $from) and (defined $to) or
+    die "Unable to parse transition '$transition'\n";
+
+  my %score = ("GONE" => 1,
+               "UNRESOLVED" => 1,
+               "UNTESTED" => 1,
+               "FAIL" => 1,
+               "UNSUPPORTED" => 1,
+               "PASS" => 0,
+               "XFAIL" => 0,
+               "KFAIL" => 0,
+               "XPASS" => 0,
+               "KPASS" => 0);
+
+  (exists ($score {$from})) or
+    die "Unknown test state '$from'\n";
+  (exists ($score {$to})) or
+    die "Unknown test state '$to'\n";
+
+  return ($score{$to} > $score{$from});
+}
+
+#========================================================================#
+
+=pod
+
+=item B<all_keys>
+
+Take two hash references, return the sorted list of uniq keys from both
+hash tables.
+
+=cut
+
+sub all_keys {
+  my $hash_ref_a = shift;
+  my $hash_ref_b = shift;
+
+  my @keys = (keys (%{$hash_ref_a}), keys (%{$hash_ref_b}));
+  @keys = uniq (sort (@keys));
+
+  return @keys;
+}
+
+#========================================================================#
+
+=pod
+
+=item B<load_results>
+
+Takes the name of a summary file as an argument, loads the summary file and
+returns a hash-reference.  The keys of the hash are the test script names,
+and the values are themselves, hash-references.
+
+Each of these second level hash tables have keys that are the unique ID for
+a test and the value is TestResult object.
+
+=cut
+
+sub load_results {
+  my $filename = shift;
+
+  my @results = SumFileParser::parse ($filename);
+
+  my $result = {};
+  foreach my $r (@results)
+  {
+    my $script = $r->get_directory ()."/".$r->get_filename ();
+    my $id = $r->get_id ();
+    $result->{$script}->{$id} = $r;
+  }
+
+  return $result;
+}
+
+#========================================================================#
+
+=pod
+
+=item B<main>
+
+Main method, takes no arguments, return exit status.
+
+=cut
+
+sub main {
+  my $collapse = false;
+  my $bad_only = false;
+  my $quiet = false;
+  GetOptions ("bad-only|b" => \$bad_only,
+              "quiet|q" => \$quiet,
+              "collapse-missing-scripts|c" => \$collapse);
+
+  my $filename1 = shift (@ARGV);
+  my $filename2 = shift (@ARGV);
+
+  (defined ($filename1)) or usage ();
+  (defined ($filename2)) or usage ();
+
+  my $results1 = load_results ($filename1);
+  my $results2 = load_results ($filename2);
+
+  my @all_scripts = all_keys ($results1, $results2);
+
+  my $summary = { __scripts_gone__ => [],
+                  __scripts_appeared__ => [] };
+  foreach my $script (@all_scripts)
+  {
+    if ($collapse)
+    {
+      if (not (exists ($results1->{$script})))
+      {
+        push @{$summary->{__scripts_appeared__}}, $script;
+        next;
+      }
+      elsif (not (exists ($results2->{$script})))
+      {
+        push @{$summary->{__scripts_gone__}}, $script;
+        next;
+      }
+    }
+
+    my $rs1 = $results1->{$script};
+    my $rs2 = $results2->{$script};
+    (defined ($rs1)) or $rs1 = {};
+    (defined ($rs2)) or $rs2 = {};
+
+    my @all_ids = all_keys ($rs1, $rs2);
+    foreach my $id (@all_ids)
+    {
+      my $from_status = "GONE";
+      my $to_status = "GONE";
+      my $from = $rs1->{$id};
+      my $to = $rs2->{$id};
+
+      $from_status = $from->get_status () if (defined ($from));
+      $to_status = $to->get_status () if (defined ($to));
+
+      if ($from_status ne $to_status)
+      {
+        my $key = $from_status." -> ".$to_status;
+        $summary->{$key} = [] unless (exists ($summary->{$key}));
+        my $r = (defined $from) ? $from : $to;
+        push @{$summary->{$key}}, $r;
+      }
+    }
+  }
+
+  my $seen_bad = false;
+
+  if (@{$summary->{__scripts_gone__}})
+  {
+    $seen_bad = true;
+    if (not $quiet)
+    {
+      print "* The following test scripts have disappeared completely:".
+        "\t[BAD]\n";
+      print "\t$_\n" foreach (@{$summary->{__scripts_gone__}});
+    }
+  }
+
+  if (@{$summary->{__scripts_appeared__}})
+  {
+    if ((not $quiet) and (not $bad_only))
+    {
+      print "* The following test scripts are completely new:\n";
+      print "\t$_\n" foreach (@{$summary->{__scripts_appeared__}});
+    }
+  }
+
+  foreach my $key (keys %{$summary})
+  {
+    next if ($key =~ m/^__/);
+
+    my $is_bad = is_bad_transition ($key);
+    if ($is_bad)
+    {
+      $seen_bad = true;
+    }
+
+    next if (($quiet) or ($bad_only and (not $is_bad)));
+
+    print "* $key:".($is_bad ? "\t[BAD]" : "")."\n";
+    foreach my $r (@{$summary->{$key}})
+    {
+      print "\t".$r->get_id ()."\n";
+    }
+  }
+
+  return $seen_bad ? 1 : 0;
+}
+
+#========================================================================#
+
+=pod
+
+=back
+
+=head1 AUTHOR
+
+Andrew Burgess, 04 Feb 2018
+
+=cut

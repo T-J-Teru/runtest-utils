@@ -13,7 +13,15 @@ TestResult - A single test results from a DeJaGNU summary file.
 
 =head1 SYNOPSIS
 
-  Quick code sample should go here...
+  use SumFileParser;
+
+  my @results = SumFileParser::parse ($filename);
+  foreach my $result (@results)
+  {
+    print $result->get_directory () ."/". $result->get_filename ()
+		."\t". $result->get_status () ."\n";
+  }
+
 
 =head1 METHODS
 
@@ -66,7 +74,8 @@ sub is_bad {
 
 =item I<Public>: B<get_status>
 
-Currently undocumented.
+Return the status of this test as a string.  This can be any of the valid
+DeJaGnu test statuses.
 
 =cut
 
@@ -81,7 +90,9 @@ sub get_status {
 
 =item I<Public>: B<get_testname>
 
-Currently undocumented.
+Return the name of this test.  The name is based on the string reported by
+DeJaGnu, except that the results are filtered to remove some content that
+changes based on environment, for example, path names, or process IDs.
 
 =cut
 
@@ -127,7 +138,8 @@ sub get_testname {
 
 =item I<Public>: B<get_filename>
 
-Currently undocumented.
+Returns the test script filename without any leading directory, and
+example, would be 'my-test.exp'.
 
 =cut
 
@@ -142,7 +154,10 @@ sub get_filename {
 
 =item I<Public>: B<get_directory>
 
-Currently undocumented.
+Returns the directory name containing the test script, these directories
+are often used to split tests into related groups.  For example, a test
+script with path '/a/b/c/tool.tests/my-test.exp' would return the string
+'tool.tests' from this subroutine.
 
 =cut
 
@@ -157,7 +172,11 @@ sub get_directory {
 
 =item I<Public>: B<get_id>
 
-Currently undocumented.
+Returns a string that is, hopefully, unique for each test.  This is
+currently made from the results of I<get_directory>, I<get_filename>, and
+I<get_testname>, but this could change in the future.
+
+Though this ID should be unique, currently, that's not guaranteed.
 
 =cut
 

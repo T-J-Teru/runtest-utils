@@ -17,7 +17,12 @@ SumFileParser - Parse DeJaGNU test summary files.
 
 =head1 SYNOPSIS
 
-  Quick code sample should go here...
+  use SumFileParser;
+
+  my @results = SumFileParser::parse ($filename);
+
+Returns a list of TestResult objects parsed from the summary file
+I<$filename>.
 
 =head1 METHODS
 

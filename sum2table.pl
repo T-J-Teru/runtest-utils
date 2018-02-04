@@ -146,7 +146,12 @@ The following methods are defined in this script.
 
 =item B<fill_in_sort_indexes>
 
-Currently undocumented.
+Takes the sort specification list as computed by I<build_sort_spec> and
+adds an extra field to each hash-reference in the list that is the column
+index for that field.  The index will depend on the order of the columns in
+the results table, which can change as we remove columns that are all 0.
+
+Pre-computing the index speeds up the later sorting of the results.
 
 =cut
 
@@ -191,7 +196,9 @@ sub fill_in_sort_indexes {
 
 =item B<build_sort_spec>
 
-Currently undocumented.
+Takes a string that is the sort specification as passed to --sort command
+line argument (or the default if the user didn't pass anything) and returns
+a list of hash-references which we use for sorting.
 
 =cut
 
@@ -313,7 +320,15 @@ sub compare_rows {
 
 =item B<build_table_columns>
 
-Currently undocumented.
+Builds all of the columns that form a single row of the results table.
+Takes the name of a test script, two result sets, and a list of the
+statuses that reflect the order of the columns in the table.
+
+The second result set can be undef if we're only processing a single
+summary file.
+
+This function returns a list of hash-references.  Each hash reference
+represents a single column.
 
 =cut
 
@@ -378,7 +393,13 @@ sub build_table_columns {
 
 =item B<process_file>
 
-Currently undocumented.
+Takes the name of a file to load, and returns a hash containing the results
+loaded from the file.
+
+If the filename passed in is undefined, then a valid results hash is still
+returned, it will just contain no results.
+
+If the file fails to load for any other reason then the function will die.
 
 =cut
 
@@ -422,7 +443,7 @@ sub process_file {
 
 =item B<main>
 
-Currently undocumented.
+Main function.  Called with no argument, returns exit status.
 
 =cut
 

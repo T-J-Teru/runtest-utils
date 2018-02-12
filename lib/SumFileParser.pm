@@ -50,23 +50,50 @@ sub parse {
   open my $in, $filename
     or croak ("Failed to open '$filename': $!");
 
+  my $expfile = { __full_name__ => undef,
+                  __file__ => undef,
+                  __dir__ => undef };
+
   while (<$in>)
   {
+    if (m#^Running .*/testsuite/(.*) \.\.\.$#)
+    {
+      $expfile->{ __full_name__ } = $1;
+
+      my $rev = reverse ($expfile->{ __full_name__ });
+      $rev =~ m#^([^/]+)/(.*)#;
+      $expfile->{ __file__ } = reverse ($1);
+      $expfile->{ __dir__ } = reverse ($2);
+    }
+
     if (m/^(UNSUPPORTED|FAIL|PASS|XFAIL|XPASS|UNRESOLVED|KFAIL|KPASS|UNTESTED): /)
     {
       my $status = $1;
       $_ =~ s/^[^:]+:\s*//;
 
-      $_ =~ m/(^[^:]+):\s*(.*)$/;
-      my $testname = $2;
+      my ($file, $dir, $testname);
+      if ($_ =~ m/(^[^: ]+):\s*(.*)$/)
+      {
+        my ($curr_expfile, $rev);
+        ($curr_expfile, $testname) = ($1, $2);
 
-      my $rev = reverse $1;
-      $rev =~ m#^([^/]+)/(.*)#;
-      my $file = reverse ($1);
-      my $dir = reverse ($2);
+        if ($curr_expfile ne $expfile->{ __full_name__ })
+        {
+          print "Line: $_";
+          croak ("expected a test in '".$expfile->{ __full_name__ }
+                   ."' but found one in '".$curr_expfile."'");
+        }
+      }
+      else
+      {
+        $testname = $_;
+        chomp $testname;
+      }
 
-      my $test = TestResult->new (-directory => $dir,
-                                  -filename => $file,
+      assert (defined ($testname));
+
+      my $test = TestResult->new (-directory => $expfile->{ __dir__ },
+                                  -filename => $expfile->{ __file__ },
                                   -testname => $testname,
                                   -status => $status);
       defined $test or die;

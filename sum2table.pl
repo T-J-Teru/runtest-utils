@@ -111,7 +111,8 @@ regular expression.
 
 #========================================================================#
 
-use lib "$ENV{HOME}/lib";
+use FindBin;
+use lib "$FindBin::Bin/lib";
 use GiveHelp qw/usage/;         # Allow -h or --help command line options.
 use boolean;
 use List::Util qw/max/;

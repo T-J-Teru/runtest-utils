@@ -47,7 +47,6 @@ anything considered bad happened then the script returns value 1.
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
-use lib "$ENV{HOME}/lib";
 use GiveHelp qw/usage/;         # Allow -h or --help command line options.
 use SumFileParser;
 use List::Util qw/uniq/;

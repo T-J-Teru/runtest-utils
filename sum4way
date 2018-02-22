@@ -83,7 +83,6 @@ IDs, and can be used to check which IDs the script is finding.
 #========================================================================#
 
 use FindBin;
-use lib "$ENV{HOME}/lib";
 use lib "$FindBin::Bin/lib";
 use GiveHelp qw/usage/;         # Allow -h or --help command line options.
 use boolean;

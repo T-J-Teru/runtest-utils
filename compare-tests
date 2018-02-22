@@ -49,7 +49,7 @@ use FindBin;
 use lib "$FindBin::Bin/lib";
 use GiveHelp qw/usage/;         # Allow -h or --help command line options.
 use SumFileParser;
-use List::Util qw/uniq/;
+use List::MoreUtils qw/uniq/;
 use Getopt::Long;
 use boolean;
 

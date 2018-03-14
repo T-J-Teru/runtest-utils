@@ -119,7 +119,7 @@ sub parse {
       # can extract this, and possibly cross-check it with the previous
       # 'Running' line, or, if there was no previous 'Running' line, this
       # will provide the name of the exp file that produced this test.
-      if ($_ =~ m/(^[^: ]+):\s*(.*)$/)
+      if ($_ =~ m/(^[^: ]+\.exp):\s*(.*)$/)
       {
         my $curr_expfile;
         ($curr_expfile, $testname) = ($1, $2);

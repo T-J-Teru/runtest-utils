@@ -35,6 +35,22 @@ The methods for this module are listed here:
 
 =pod
 
+=item I<Public>: B<get_path>
+
+Returns the result of I<get_directory> joined to I<get_filename> with a '/'
+character between.
+
+=cut
+
+sub get_path {
+  my $self = shift;
+  return $self->get_directory () . "/" . $self->get_filename ();
+}
+
+#========================================================================#
+
+=pod
+
 =item I<Public>: B<is_pass>
 
 Return true if this test should be considered a passing test.  Currently

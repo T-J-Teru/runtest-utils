@@ -184,7 +184,7 @@ foreach my $id (keys %{$rev_d->{-results}})
   my $r = $rev_d->{-results}->{ $id };
   next unless ($r->get_status () eq "UNSUPPORTED");
 
-  my $test_path = $r->get_directory () ."/". $r->get_filename ();
+  my $test_path = $r->get_path ();
   $unsupported { $test_path } = $r;
 }
 
@@ -193,7 +193,7 @@ foreach my $id (keys %{$rev_b->{-results}})
   my $r = $rev_b->{-results}->{ $id };
   next unless ($r->get_status () eq "UNSUPPORTED");
 
-  my $test_path = $r->get_directory () ."/". $r->get_filename ();
+  my $test_path = $r->get_path ();
   delete $unsupported{ $test_path };
 }
 
@@ -234,7 +234,7 @@ foreach my $t (@fail_a)
 {
   my $str = $t->{ -string };
   my $t = $t->{ -result };
-  my $test_path = $t->get_directory () ."/". $t->get_filename ();
+  my $test_path = $t->get_path ();
   if ($org_format)
   {
     if ($prev_test_path ne $test_path)
@@ -273,7 +273,7 @@ foreach my $t (@fail_b)
 {
   my $str = $t->{ -string };
   $t = $t->{ -result };
-  my $test_path = $t->get_directory () ."/". $t->get_filename ();
+  my $test_path = $t->get_path ();
   next if (exists $unsupported{ $test_path });
   if ($org_format)
   {

@@ -155,7 +155,7 @@ sub load_results {
   my $result = {};
   foreach my $r (@results)
   {
-    my $script = $r->get_directory ()."/".$r->get_filename ();
+    my $script = $r->get_path ();
     my $id = $r->get_id ();
     $result->{$script}->{$id} = $r;
   }

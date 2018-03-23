@@ -119,6 +119,7 @@ use List::Util qw/max/;
 use List::MoreUtils qw/uniq/;
 use Getopt::Long;
 use Carp::Assert;
+use SumFileParser;
 
 #========================================================================#
 
@@ -414,26 +415,20 @@ sub process_file {
   (-f $filename) and (-r $filename)
     or die "File '$filename' is not a readable file\n";
 
-  open my $fh, $filename
-    or die "Faield to open '$filename': $!";
-  while (<$fh>)
+  my @results = SumFileParser::parse ($filename);
+
+  foreach my $r (@results)
   {
-    if (m/^((?:[XK]?(?:PASS|FAIL))|UNSUPPORTED|UNRESOLVED|UNTESTED): /)
-    {
-      my $status = $1;
-      my ($testname) = m/^[^:]+: ([^:]+):/;
+    my $testname = $r->get_path ();
+    my $status = $r->get_status ();
 
-      $results->{-by_testname}->{$testname} = {}
-        unless (exists ($results->{-by_testname}->{$testname}));
-      $results->{-by_testname}->{$testname}->{$status} = 0
-        unless (exists ($results->{-by_testname}->{$testname}->{$status}));
-      $results->{-by_testname}->{$testname}->{$status}++;
-      $results->{-status_types}->{$status} = true;
-    }
+    $results->{-by_testname}->{$testname} = {}
+      unless (exists ($results->{-by_testname}->{$testname}));
+    $results->{-by_testname}->{$testname}->{$status} = 0
+      unless (exists ($results->{-by_testname}->{$testname}->{$status}));
+    $results->{-by_testname}->{$testname}->{$status}++;
+    $results->{-status_types}->{$status} = true;
   }
-
-  close $fh or
-    die "Failed to close '$filename': $!";
 
   return $results;
 }

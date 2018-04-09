@@ -18,6 +18,7 @@ sum2table - render one or two DeJaGnu sum files as a table
 B<sum2table> [-h|--help]
              [--sort=SPEC]
              [--filter=PATTERN]
+             [--only-changed|-c]
              SUM_FILE_1 [ SUM_FILE_2 ]
 
 =head1 SYNOPSIS
@@ -107,6 +108,16 @@ matches any of the filters will be displayed, all non matching testnames
 are removed from the table.  The value passed to the filter is treated as a
 regular expression.
 
+The I<--only-changed> option (or I<-c> for short) filters out all lines
+from the results table that have not changed, keeping only those lines that
+have some changes.  This option only makes sense when two summary files are
+being compared, and will cause an error if it is used with only one summary
+file.  Further, this option can be combined with the --filter option, lines
+will only be displayed if they match a filter AND they have changed.
+
+When results are filtered using either --filter or --only-changed then
+sorting the results with the --sort argument still works.
+
 =cut
 
 #========================================================================#
@@ -141,6 +152,24 @@ The following methods are defined in this script.
 =over 4
 
 =cut
+
+#========================================================================#
+
+=pod
+
+=item B<results_contain_testname>
+
+Takes a result set and the name of a test.  Returns true if there are
+results for that testname in the result set, otherwise it returns false.
+
+=cut
+
+sub results_contain_testname {
+  my $results = shift;
+  my $testname = shift;
+
+  return (exists ($results->{-by_testname}->{$testname}));
+}
 
 #========================================================================#
 
@@ -344,11 +373,11 @@ sub build_table_columns {
   my $suffix = "";
   if (defined ($results_2))
   {
-    if (not (exists ($results_1->{-by_testname}->{$testname})))
+    if (not (results_contain_testname ($results_1, $testname)))
     {
       $suffix = " (+)";
     }
-    elsif (not (exists ($results_2->{-by_testname}->{$testname})))
+    elsif (not (results_contain_testname ($results_2, $testname)))
     {
       $suffix = " (-)";
     }
@@ -423,7 +452,7 @@ sub process_file {
     my $status = $r->get_status ();
 
     $results->{-by_testname}->{$testname} = {}
-      unless (exists ($results->{-by_testname}->{$testname}));
+      unless (results_contain_testname ($results, $testname));
     $results->{-by_testname}->{$testname}->{$status} = 0
       unless (exists ($results->{-by_testname}->{$testname}->{$status}));
     $results->{-by_testname}->{$testname}->{$status}++;
@@ -446,12 +475,20 @@ Main function.  Called with no argument, returns exit status.
 sub main {
   my @filters = ();
   my $sort = undef;
+  my $only_changed = false;
   GetOptions ("sort=s" => \$sort,
-              "filter=s" => \@filters);
+              "filter=s" => \@filters,
+              "only-changed|c" => \$only_changed);
 
   my $filename = shift @ARGV;
   (defined $filename) or usage ();
   my $filename_2 = shift @ARGV;
+
+  if ($only_changed and (not (defined ($filename_2))))
+  {
+    die ("Error: The --only-changed option can only be used with ".
+           "two summary files\n");
+  }
 
   if (defined ($sort))
   {
@@ -468,7 +505,6 @@ sub main {
     }
     $sort = build_sort_spec ($sort);
   }
-
 
   my $results_1 = process_file ($filename);
   my $results_2 = undef;
@@ -496,17 +532,22 @@ sub main {
   @all_test_names = uniq (@all_test_names);
 
   # Filter the list of test names based on the --filter command line
-  # option(s).
-  if (scalar (@filters) > 0)
+  # option(s), or if --only-changed was passed.
+  if ((scalar (@filters) > 0) or $only_changed)
   {
     my @r;
+    my $init_found_val = not (scalar (@filters) > 0);
 
     @filters = map { qr/$_/ } @filters;
 
     foreach my $n (@all_test_names)
     {
-      my $found = false;
+      # If we have some filters then we initiaise FOUND to false, otherwise
+      # it will be initiaised to true.
+      my $found = $init_found_val;
 
+      # Does the testname match any filter?  If it does then FOUND will be
+      # changed to true, otherwise, FOUND is left unchanged.
       foreach my $re (@filters)
       {
         if ($n =~ $re)
@@ -515,6 +556,52 @@ sub main {
           last;
         }
       }
+
+      # If the user is only interested in changed results, and FOUND is
+      # otherwise true (so we would show this result) then check to see if
+      # the result has changed.
+      if ($only_changed and $found)
+      {
+        $found = false;
+
+        if (results_contain_testname ($results_1, $n)
+              != results_contain_testname ($results_2, $n))
+        {
+          $found = true;
+        }
+        else
+        {
+          assert (results_contain_testname ($results_1, $n));
+          assert (results_contain_testname ($results_2, $n));
+
+          foreach my $status (@status_types)
+          {
+            my $old_val = 0;
+            my $new_val = 0;
+
+            # Use exists on each step in the chain to avoid
+            # autovivification.
+            if (exists ($results_1->{-by_testname}->{$n}->{$status}))
+            {
+              $old_val = $results_1->{-by_testname}->{$n}->{$status};
+            }
+
+            # Use exists on each step in the chain to avoid
+            # autovivification.
+            if (exists ($results_2->{-by_testname}->{$n}->{$status}))
+            {
+              $new_val = $results_2->{-by_testname}->{$n}->{$status};
+            }
+
+            if ($old_val != $new_val)
+            {
+              $found = true;
+              last;
+            }
+          }
+        }
+      }
+
       push @r, $n if ($found);
     }
 

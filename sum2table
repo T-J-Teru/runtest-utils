@@ -368,6 +368,7 @@ sub build_table_columns {
   my $results_1 = shift;
   my $results_2 = shift;
   my $status_types = shift;
+  my $test_set_changed = shift;
 
   my @columns = ();
   my $suffix = "";
@@ -375,13 +376,15 @@ sub build_table_columns {
   {
     if (not (results_contain_testname ($results_1, $testname)))
     {
+      assert ($test_set_changed);
       $suffix = " (+)";
     }
     elsif (not (results_contain_testname ($results_2, $testname)))
     {
+      assert ($test_set_changed);
       $suffix = " (-)";
     }
-    else
+    elsif ($test_set_changed)
     {
       $suffix = "    ";
     }
@@ -608,6 +611,17 @@ sub main {
     @all_test_names = @r;
   }
 
+  my $test_set_changed = false;
+  foreach my $n (@all_test_names)
+  {
+    if (results_contain_testname ($results_1, $n)
+          != results_contain_testname ($results_2, $n))
+    {
+      $test_set_changed = true;
+      last;
+    }
+  }
+
   # Initialise the list of widths of each columns.
   my @widths = (0);
   foreach (@status_types)
@@ -620,8 +634,9 @@ sub main {
   my @rows;
   foreach my $testname (@all_test_names)
   {
-    my @columns = build_table_columns  ($testname, $results_1,
-                                        $results_2, \@status_types);
+    my @columns = build_table_columns ($testname, $results_1,
+                                       $results_2, \@status_types,
+                                       $test_set_changed);
     push @rows, \@columns;
 
     for (my $i = 0; $i < scalar (@columns); $i++)

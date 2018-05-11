@@ -140,6 +140,23 @@ sub get_testname {
   $testname =~ s#(set env LD_LIBRARY_PATH=).*(gdb/testsuite/gdb.base/):#$1$2#;
   $testname =~ s#"mypid" \(\d+\)#"mypid" \(XXXX\)#;
   $testname =~ s#threaded: attempt \d+: attach \(pass (\d)\), pending signal catch#threaded: attempt XX: attach \(pass $1\), pending signal catch#;
+  $testname =~ s#get integer valueof "\(int\) munmap \(\d+, 4096\)"#get integer valueof "\(int\) munmap \(ADDRESS, 4096\)"#;
+
+  if ($self->get_path () eq "gdb.reverse/insn-reverse.exp")
+  {
+    $testname =~ s#0x[0-9a-f]{8,16}#HEX-ADDR#g;
+  }
+
+  if ($self->get_path () eq "gdb.base/sss-bp-on-user-bp.exp")
+  {
+    $testname =~ s#b \*0x[0-9a-f]{8,16}#b \*0xHEX-ADDR#;
+  }
+
+  if ($self->get_path () eq "gdb.threads/process-dies-while-handling-bp.exp")
+  {
+    $testname =~ s#(non_stop=off: cond_bp_target=0: inferior 1 exited) \([^)]+\)#$1 \(ERROR REASON\)#;
+    $testname =~ s#(non_stop=on: cond_bp_target=1: inferior 1 exited) \([^)]+\)#$1 \(ERROR REASON\)#;
+  }
 
   $testname =~ s/\s*$//;
 

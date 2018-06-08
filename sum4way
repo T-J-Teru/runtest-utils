@@ -5,6 +5,9 @@ use strict;
 no indirect;
 no autovivification;
 
+# Converted to a real package number by autotools.
+my $VERSION_NUMBER = "~~PACKAGE-VERSION~~";
+
 #========================================================================#
 
 =pod
@@ -95,8 +98,17 @@ use Getopt::Long;
 
 my $org_format = false;
 my $dump_ids = false;
-GetOptions ("org|o" => \$org_format,
+my $show_version = false;
+
+GetOptions ("version" => \$show_version,
+            "org|o" => \$org_format,
             "dump-ids|d" => \$dump_ids);
+
+if ($show_version)
+{
+  print "$FindBin::Script version $VERSION_NUMBER\n";
+  exit (0);
+}
 
 my ($rev_a, $rev_b, $rev_c, $rev_d) = process_argv (@ARGV);
 

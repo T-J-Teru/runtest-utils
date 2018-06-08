@@ -5,6 +5,9 @@ use strict;
 no indirect;
 no autovivification;
 
+# Converted to a real package number by autotools.
+my $VERSION_NUMBER = "~~PACKAGE-VERSION~~";
+
 #========================================================================#
 
 =pod
@@ -15,7 +18,7 @@ sum2table - render one or two DeJaGnu sum files as a table
 
 =head1 OPTIONS
 
-B<sum2table> [-h|--help]
+B<sum2table> [-h|--help] [--version]
              [--sort=SPEC]
              [--filter=PATTERN]
              [--only-changed|-c]
@@ -479,9 +482,18 @@ sub main {
   my @filters = ();
   my $sort = undef;
   my $only_changed = false;
-  GetOptions ("sort=s" => \$sort,
+  my $show_version = false;
+
+  GetOptions ("version" => \$show_version,
+              "sort=s" => \$sort,
               "filter=s" => \@filters,
               "only-changed|c" => \$only_changed);
+
+  if ($show_version)
+  {
+    print "$FindBin::Script version $VERSION_NUMBER\n";
+    exit (0);
+  }
 
   my $filename = shift @ARGV;
   (defined $filename) or usage ();

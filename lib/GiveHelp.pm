@@ -75,7 +75,7 @@ sub BEGIN {
   Getopt::Long::Configure('no_pass_through');
 
   if ($help) {
-    usage(""); # Emty string to silence default message.
+    usage(""); # Empty string to silence default message.
     # NEVER GETS HERE #
   }
 }

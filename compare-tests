@@ -21,6 +21,7 @@ compare-tests - compare two summary files and highlight regressions
 B<compare-tests> [-h|--help] [--version]
                  [-q|--quiet] [-b|--bad-only]
                  [-c|--collapse-missing-scripts]
+                 [-s|--summary]
                  SUM-FILE-BEFORE SUM-FILE-AFTER
 
 =head1 SYNOPSIS
@@ -37,6 +38,11 @@ changes, the only thing printed are changes considered bad.
 With the I<--collapse-missing-scripts> flag, if a script is entirely
 missing then this is summarised with a single line, rather than listing all
 the tests in the script as transitioning too or from the GONE status.
+
+With the I<--summary> flag, a summary of the comparison is produced.
+Instead of listing each test that has changed, just a summary list of the
+number of changes of each type is given.  Only types of change for which
+the count is 1 or more are listed.
 
 =head1 EXIT VALUE
 
@@ -182,10 +188,12 @@ sub main {
   my $bad_only = false;
   my $quiet = false;
   my $show_version = false;
+  my $summarise = false;
   GetOptions ("version" => \$show_version,
               "bad-only|b" => \$bad_only,
               "quiet|q" => \$quiet,
-              "collapse-missing-scripts|c" => \$collapse);
+              "collapse-missing-scripts|c" => \$collapse,
+              "summary|s" => \$summarise);
 
   if ($show_version)
   {
@@ -255,9 +263,17 @@ sub main {
     $seen_bad = true;
     if (not $quiet)
     {
-      print "* The following test scripts have disappeared completely:".
-        "\t[BAD]\n";
-      print "\t$_\n" foreach (@{$summary->{__scripts_gone__}});
+      if ($summarise)
+      {
+        print "Test scripts gone [BAD] : ".
+          scalar (@{$summary->{__scripts_gone__}})."\n";
+      }
+      else
+      {
+        print "* The following test scripts have disappeared completely:".
+          "\t[BAD]\n";
+        print "\t$_\n" foreach (@{$summary->{__scripts_gone__}});
+      }
     }
   }
 
@@ -265,8 +281,16 @@ sub main {
   {
     if ((not $quiet) and (not $bad_only))
     {
-      print "* The following test scripts are completely new:\n";
-      print "\t$_\n" foreach (@{$summary->{__scripts_appeared__}});
+      if ($summarise)
+      {
+        print "New test scripts\t: "
+          .scalar (@{$summary->{__scripts_appeared__}})."\n";
+      }
+      else
+      {
+        print "* The following test scripts are completely new:\n";
+        print "\t$_\n" foreach (@{$summary->{__scripts_appeared__}});
+      }
     }
   }
 
@@ -275,17 +299,22 @@ sub main {
     next if ($key =~ m/^__/);
 
     my $is_bad = is_bad_transition ($key);
-    if ($is_bad)
-    {
-      $seen_bad = true;
-    }
+    $seen_bad = true if ($is_bad);
 
     next if (($quiet) or ($bad_only and (not $is_bad)));
 
-    print "* $key:".($is_bad ? "\t[BAD]" : "")."\n";
-    foreach my $r (@{$summary->{$key}})
+    if ($summarise)
     {
-      print "\t".$r->get_id ()."\n";
+      print "$key".($is_bad ? "\t[BAD]\t" : "\t\t").": ".
+        (scalar (@{$summary->{$key}}))."\n";
+    }
+    else
+    {
+      print "* $key:".($is_bad ? "\t[BAD]" : "")."\n";
+      foreach my $r (@{$summary->{$key}})
+      {
+        print "\t".$r->get_id ()."\n";
+      }
     }
   }
 

@@ -102,6 +102,7 @@ sub is_bad_transition {
   (defined $from) and (defined $to) or
     die "Unable to parse transition '$transition'\n";
 
+  # A '1' indicates a bad state, while '0' represents good.
   my %score = ("GONE" => 1,
                "UNRESOLVED" => 1,
                "UNTESTED" => 1,
@@ -118,7 +119,7 @@ sub is_bad_transition {
   (exists ($score {$to})) or
     die "Unknown test state '$to'\n";
 
-  return ($score{$to} > $score{$from});
+  return (($from ne $to) and ($score{$to} > 0));
 }
 
 #========================================================================#

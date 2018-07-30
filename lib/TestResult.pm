@@ -126,6 +126,7 @@ sub get_testname {
   $testname =~ s/\(PRMS:? [^)]+\)\s*//;
   $testname =~ s#(Couldn't compile) .*(gdb/testsuite/gdb.java/jnpe.java)#$1 $2#;
   $testname =~ s#(Couldn't compile) .*(gdb/testsuite/gdb.[^/]+/.*)#$1 $2#;
+  $testname =~ s#(Cannot compile) .*(gdb/testsuite/gdb.[^/]+/.*)#$1 $2#;
   $testname =~ s#\(open '.*(gdb/testsuite/gdb.[^/']+/[^']+)'\)#(open '$1')#;
   $testname =~ s#print characters#print elements#;
   $testname =~ s#with characters set to#with elements set to#;
@@ -145,6 +146,11 @@ sub get_testname {
   if ($self->get_path () eq "gdb.reverse/insn-reverse.exp")
   {
     $testname =~ s#0x[0-9a-f]{8,16}#HEX-ADDR#g;
+  }
+
+  if ($self->get_path () eq "gdb.opt/inline-break.exp")
+  {
+    $testname =~ s#(address: break \*0x)[0-9a-f]{8,16}#$1HEX-ADDR#g;
   }
 
   if ($self->get_path () eq "gdb.base/sss-bp-on-user-bp.exp")

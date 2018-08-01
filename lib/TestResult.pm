@@ -164,6 +164,11 @@ sub get_testname {
     $testname =~ s#(non_stop=on: cond_bp_target=1: inferior 1 exited) \([^)]+\)#$1 \(ERROR REASON\)#;
   }
 
+  if ($self->get_path () eq "gdb.guile/scm-ports.exp")
+  {
+    $testname =~ s#(get valueof "\$sp" )\([0-9]+\)#$1\(VALUE\)#;
+  }
+
   $testname =~ s/\s*$//;
 
   # Cache and return the testname

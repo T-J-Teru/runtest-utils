@@ -169,6 +169,11 @@ sub get_testname {
     $testname =~ s#(get valueof "\$sp" )\([0-9]+\)#$1\(VALUE\)#;
   }
 
+  if ($self->get_path () eq "gdb.base/batch-exit-status.exp")
+  {
+    $testname =~ s#( -x )(.*)(gdb/testsuite/gdb.base/batch-exit-status.(:?bad|good)-commands)#$1$3#
+  }
+
   $testname =~ s/\s*$//;
 
   # Cache and return the testname

@@ -133,7 +133,7 @@ use List::Util qw/max/;
 use List::MoreUtils qw/uniq/;
 use Getopt::Long;
 use Carp::Assert;
-use SumFileParser;
+use RunTestUtils::SumFileParser;
 
 #========================================================================#
 
@@ -450,7 +450,7 @@ sub process_file {
   (-f $filename) and (-r $filename)
     or die "File '$filename' is not a readable file\n";
 
-  my @results = SumFileParser::parse ($filename);
+  my @results = RunTestUtils::SumFileParser::parse ($filename);
 
   foreach my $r (@results)
   {

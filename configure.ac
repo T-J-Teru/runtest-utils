@@ -9,6 +9,7 @@ AC_CHECK_PROGS([SED], [sed], [false])
 AC_PROG_INSTALL
 
 AC_CONFIG_FILES([Makefile \
-                 lib/Makefile])
+                 lib/Makefile \
+                 lib/RunTestUtils/Makefile])
 
 AC_OUTPUT

@@ -1,4 +1,4 @@
-package SumFileParser;
+package RunTestUtils::SumFileParser;
 
 use strict;
 use warnings;
@@ -7,23 +7,23 @@ no autovivification;
 
 use Carp;
 use Carp::Assert;
-use TestResult;
+use RunTestUtils::TestResult;
 use boolean;
 
 =pod
 
 =head1 NAME
 
-SumFileParser - Parse DeJaGNU test summary files.
+RunTestUtils::SumFileParser - Parse DeJaGNU test summary files.
 
 =head1 SYNOPSIS
 
-  use SumFileParser;
+  use RunTestUtils::SumFileParser;
 
-  my @results = SumFileParser::parse ($filename);
+  my @results = RunTestUtils::SumFileParser::parse ($filename);
 
-Returns a list of TestResult objects parsed from the summary file
-I<$filename>.
+Returns a list of RunTestUtils::TestResult objects parsed from the summary
+file I<$filename>.
 
 =head1 METHODS
 
@@ -65,7 +65,7 @@ sub split_full_exp_file_name {
 =item I<Public>: B<parse>
 
 A function to parse the contents of a summary file, returns a list of
-TestResult objects.
+RunTestUtils::TestResult objects.
 
 =cut
 
@@ -170,10 +170,10 @@ sub parse {
       assert (defined ($file));
 
       # Create the new result.
-      my $test = TestResult->new (-directory => $dir,
-                                  -filename => $file,
-                                  -testname => $testname,
-                                  -status => $status);
+      my $test = RunTestUtils::TestResult->new (-directory => $dir,
+                                                -filename => $file,
+                                                -testname => $testname,
+                                                -status => $status);
       defined $test or die;
       push @results, $test;
     }

@@ -58,7 +58,7 @@ anything considered bad happened then the script returns value 1.
 use FindBin;
 use lib "$FindBin::Bin/lib";
 use GiveHelp qw/usage/;         # Allow -h or --help command line options.
-use SumFileParser;
+use RunTestUtils::SumFileParser;
 use List::MoreUtils qw/uniq/;
 use Getopt::Long;
 use boolean;
@@ -161,7 +161,7 @@ a test and the value is TestResult object.
 sub load_results {
   my $filename = shift;
 
-  my @results = SumFileParser::parse ($filename);
+  my @results = RunTestUtils::SumFileParser::parse ($filename);
 
   my $result = {};
   foreach my $r (@results)

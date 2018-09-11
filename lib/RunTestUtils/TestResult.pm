@@ -1,4 +1,4 @@
-package TestResult;
+package RunTestUtils::TestResult;
 
 use strict;
 use warnings;
@@ -9,13 +9,13 @@ no autovivification;
 
 =head1 NAME
 
-TestResult - A single test results from a DeJaGNU summary file.
+RunTestUtils::TestResult - A single test results from a DeJaGNU summary file.
 
 =head1 SYNOPSIS
 
-  use SumFileParser;
+  use RunTestUtils::SumFileParser;
 
-  my @results = SumFileParser::parse ($filename);
+  my @results = RunTestUtils::SumFileParser::parse ($filename);
   foreach my $result (@results)
   {
     print $result->get_directory () ."/". $result->get_filename ()
@@ -242,7 +242,7 @@ sub get_id {
 
 =item I<Public>: B<new>
 
-Create a new instance of TestResult and then call initialise
+Create a new instance of RunTestUtils::TestResult and then call initialise
 on it.
 
 =cut

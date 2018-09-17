@@ -1,4 +1,4 @@
-package RunTestUtils::SumFileParser;
+package RunTestUtils::SumFile;
 
 use strict;
 use warnings;
@@ -14,16 +14,17 @@ use boolean;
 
 =head1 NAME
 
-RunTestUtils::SumFileParser - Parse DeJaGNU test summary files.
+RunTestUtils::SumFile - Information extracted from a DeJaGNU summary file.
 
 =head1 SYNOPSIS
 
-  use RunTestUtils::SumFileParser;
+The following parses a summary file, the name of which is in I<$filename>
+and then obtains the list of results.
 
-  my @results = RunTestUtils::SumFileParser::parse ($filename);
+  use RunTestUtils::SumFile;
 
-Returns a list of RunTestUtils::TestResult objects parsed from the summary
-file I<$filename>.
+  my $summary_file = RunTestUtils::SumFile->parse ($filename);
+  my @results = $summary_file->results ();
 
 =head1 METHODS
 
@@ -33,29 +34,38 @@ The methods for this module are listed here:
 
 =cut
 
-#============================================================================#
+#========================================================================#
 
 =pod
 
-=item I<Private>: B<split_full_exp_file_name>
+=item I<Public>: B<results>
 
-Static function that takes a single parameter, the full name of an exp
-file, and returns a list of two elements, all parts of the full name upto
-the actual filename, and the actual filename.
-
-So, 'a/b/c.exp' will return ('a/b', 'c.exp').
+Return a list of RunTestUtils::TestResult object that are the results in
+this summary file.
 
 =cut
 
-sub split_full_exp_file_name {
-  my $fullname = shift;
+sub results {
+  my $self = shift;
+  return @{$self->{__results__}};
+}
 
-  my $rev = reverse ($fullname);
-  $rev =~ m#^([^/]+)/(.*)#;
-  my $file = reverse ($1);
-  my $dir = reverse ($2);
+#========================================================================#
 
-  return ($dir, $file);
+=pod
+
+=item I<Public>: B<tool>
+
+Return a string that is the name of the tool for which these test were run
+on.
+
+B<NOTE:> Currently the tool name returned is always "unknown".
+
+=cut
+
+sub tool {
+  my $self = shift;
+  return $self->{__tool__};
 }
 
 #========================================================================#
@@ -64,12 +74,40 @@ sub split_full_exp_file_name {
 
 =item I<Public>: B<parse>
 
-A function to parse the contents of a summary file, returns a list of
-RunTestUtils::TestResult objects.
+A function to parse the contents of a summary file, return a
+RunTestUtils::SumFile object.
 
 =cut
 
 sub parse {
+  my $class = shift;
+  my $filename = shift;
+
+  # Parse the results from the summary file.
+  my @results = _parse_results ($filename);
+
+  # Extract the tool name from the summary file.
+  my $toolname = "unknown";
+
+  # Create a new object and return.
+  my $self  = bless {}, $class;
+  $self->{__results__} = \@results;
+  $self->{__tool__} = $toolname;
+  return $self;
+}
+
+#========================================================================#
+
+=pod
+
+=item I<Private>: B<_parse_results>
+
+A function to parse the test results out of a summary file, returns a list
+of RunTestUtils::TestResult object.
+
+=cut
+
+sub _parse_results {
   my $filename = shift;
 
   my @results;
@@ -102,7 +140,7 @@ sub parse {
 
       $expfile->{ __full_name__ } = $1;
       ($expfile->{ __dir__ }, $expfile->{ __file__ })
-        = split_full_exp_file_name ($expfile->{ __full_name__ });
+        = _split_full_exp_file_name ($expfile->{ __full_name__ });
     }
 
     # This is a test status line.
@@ -132,7 +170,7 @@ sub parse {
           $using_running_lines = false;
 
           # Use file and directory name from the line.
-          ($dir, $file) = split_full_exp_file_name ($curr_expfile);
+          ($dir, $file) = _split_full_exp_file_name ($curr_expfile);
         }
         elsif ($curr_expfile ne $expfile->{ __full_name__ })
         {
@@ -185,6 +223,31 @@ sub parse {
   return @results;
 }
 
+#========================================================================#
+
+=pod
+
+=item I<Private>: B<_split_full_exp_file_name>
+
+Static function that takes a single parameter, the full name of an exp
+file, and returns a list of two elements, all parts of the full name upto
+the actual filename, and the actual filename.
+
+So, 'a/b/c.exp' will return ('a/b', 'c.exp').
+
+=cut
+
+sub _split_full_exp_file_name {
+  my $fullname = shift;
+
+  my $rev = reverse ($fullname);
+  $rev =~ m#^([^/]+)/(.*)#;
+  my $file = reverse ($1);
+  my $dir = reverse ($2);
+
+  return ($dir, $file);
+}
+
 #============================================================================#
 
 =pod
@@ -193,7 +256,7 @@ sub parse {
 
 =head1 AUTHOR
 
-Andrew Burgess, 20 May 2016
+Andrew Burgess, 17 Sep 2018
 
 =cut
 

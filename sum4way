@@ -91,7 +91,7 @@ use GiveHelp qw/usage/;         # Allow -h or --help command line options.
 use boolean;
 use Carp;
 use Carp::Assert;
-use RunTestUtils::SumFileParser;
+use RunTestUtils::SumFile;
 use Getopt::Long;
 
 #========================================================================#
@@ -399,7 +399,8 @@ strings, and the hash values are the TestResult object references.
 sub load_sum_file {
   my $filename = shift;
 
-  my @results = RunTestUtils::SumFileParser::parse ( $filename );
+  my $summary_file = RunTestUtils::SumFile->parse ($filename);
+  my @results = $summary_file->results ();
 
   my %res;
   foreach my $r (@results)

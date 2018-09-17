@@ -13,9 +13,9 @@ RunTestUtils::TestResult - A single test results from a DeJaGNU summary file.
 
 =head1 SYNOPSIS
 
-  use RunTestUtils::SumFileParser;
+  use RunTestUtils::SumFile;
 
-  my @results = RunTestUtils::SumFileParser::parse ($filename);
+  my @results = RunTestUtils::SumFile->parse ($filename)->results ();
   foreach my $result (@results)
   {
     print $result->get_directory () ."/". $result->get_filename ()

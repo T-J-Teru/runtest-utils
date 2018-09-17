@@ -189,6 +189,11 @@ sub get_testname {
     $testname =~ s#( -x )(.*)(gdb/testsuite/gdb.base/batch-exit-status.(:?bad|good)-commands)#$1$3#
   }
 
+  if ($self->get_toolname () eq "gdb")
+  {
+    $testname =~ s#\s+\([^)]+\)$##;
+  }
+
   $testname =~ s/\s*$//;
 
   # Cache and return the testname

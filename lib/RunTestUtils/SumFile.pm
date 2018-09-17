@@ -83,11 +83,11 @@ sub parse {
   my $class = shift;
   my $filename = shift;
 
+  # Extract the tool name from the summary file.
+  my $toolname = _parse_tool_name ($filename);
+
   # Parse the results from the summary file.
   my @results = _parse_results ($filename);
-
-  # Extract the tool name from the summary file.
-  my $toolname = "unknown";
 
   # Create a new object and return.
   my $self  = bless {}, $class;
@@ -221,6 +221,39 @@ sub _parse_results {
     or croak ("Failed to close '$filename': $!");
 
   return @results;
+}
+
+#========================================================================#
+
+=pod
+
+=item I<Private>: B<_parse_tool_name>
+
+Parse the name of the tool for which the tests were run from filename
+passed as a parameter.
+
+=cut
+
+sub _parse_tool_name {
+  my $filename = shift;
+
+  open my $in, $filename
+    or croak ("Failed to open '$filename': $!");
+
+  my $toolname = "unknown";
+  while (<$in>)
+  {
+    if (m/^\s+=== (\S+) tests ===/)
+    {
+      $toolname = $1;
+      last;
+    }
+  }
+
+  close $in
+    or croak ("Failed to close '$filename': $!");
+
+  return $toolname;
 }
 
 #========================================================================#

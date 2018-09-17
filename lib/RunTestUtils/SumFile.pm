@@ -87,7 +87,7 @@ sub parse {
   my $toolname = _parse_tool_name ($filename);
 
   # Parse the results from the summary file.
-  my @results = _parse_results ($filename);
+  my @results = _parse_results ($filename, $toolname);
 
   # Create a new object and return.
   my $self  = bless {}, $class;
@@ -109,6 +109,7 @@ of RunTestUtils::TestResult object.
 
 sub _parse_results {
   my $filename = shift;
+  my $toolname = shift;
 
   my @results;
   open my $in, $filename
@@ -211,7 +212,8 @@ sub _parse_results {
       my $test = RunTestUtils::TestResult->new (-directory => $dir,
                                                 -filename => $file,
                                                 -testname => $testname,
-                                                -status => $status);
+                                                -status => $status,
+                                                -tool => $toolname);
       defined $test or die;
       push @results, $test;
     }

@@ -35,6 +35,21 @@ The methods for this module are listed here:
 
 =pod
 
+=item I<Public>: B<get_toolname>
+
+Return the name of the tool for which this is a test result.
+
+=cut
+
+sub get_toolname {
+  my $self = shift;
+  return $self->{__tool__};
+}
+
+#========================================================================#
+
+=pod
+
 =item I<Public>: B<get_path>
 
 Returns the result of I<get_directory> joined to I<get_filename> with a '/'
@@ -278,6 +293,7 @@ sub initialise {
   $self->{ __filename__ } = $args{ -filename };
   $self->{ __original_testname__ } = $args{ -testname };
   $self->{ __status__ } = $args{ -status };
+  $self->{__tool__} = $args{ -tool };
 }
 
 #============================================================================#

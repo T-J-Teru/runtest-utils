@@ -184,6 +184,26 @@ foreach my $id (keys %{$rev_c->{-results}})
                   -string => $r->get_status () ." -> ". $ts };
 }
 
+my @fail_c;
+foreach my $id (keys %{$rev_d->{-results}})
+{
+  # If this is a test that fails on 'D', and...
+  my $r = $rev_d->{-results}->{ $id };
+  next unless ($r->is_bad ());
+
+  # ...if this is a test that didn't exist on 'C', and...
+  $r = $rev_c->{-results}->{ $id };
+  next unless (not (defined ($r)));
+
+  # ... the test either didn't exist on 'B'...
+  $r = $rev_b->{-results}->{ $id };
+  next unless (not (defined ($r)));
+
+  $r = $rev_d->{-results}->{ $id };
+  push @fail_c, { -result => $r,
+                  -string => "GONE -> " . $r->get_status () };
+}
+
 ##########################################################################
 # Try to identify new UNSUPPORTED tests that have appeared in 'D'.  The
 # idea is that a whole test file will be marked as unsupported, so one
@@ -220,6 +240,10 @@ foreach my $id (keys %{$rev_b->{-results}})
 @fail_b = sort {
   $a->{ -result }->get_id () cmp $b->{ -result }->get_id ()
 } @fail_b;
+
+@fail_c = sort {
+  $a->{ -result }->get_id () cmp $b->{ -result }->get_id ()
+} @fail_c;
 
 if ($org_format)
 {
@@ -303,6 +327,44 @@ foreach my $t (@fail_b)
   }
 }
 
+if ($org_format)
+{
+  print "\n";
+  print "* New failures in ".$rev_d->{-name}." [/]\n";
+  print ":PROPERTIES:\n";
+  print ":COOKIE_DATA: recursive\n";
+  print ":END:\n";
+  print "  The following tests are new in ".$rev_d->{-name}.", but are failing:\n";
+}
+else
+{
+  print "\n\n\n";
+  print "The following tests are new in ".$rev_d->{-name}.", but are failing:\n";
+  print "    Count = ".scalar (@fail_c)."\n\n";
+}
+
+$prev_test_path = "";
+foreach my $t (@fail_c)
+{
+  my $str = $t->{ -string };
+  $t = $t->{ -result };
+  my $test_path = $t->get_path ();
+  next if (exists $unsupported{ $test_path });
+  if ($org_format)
+  {
+    if ($prev_test_path ne $test_path)
+    {
+      print "  + ".$test_path." [/]\n";
+      $prev_test_path = $test_path;
+    }
+
+    print "    + [ ] ".$str." :: ".$t->get_id ()."\n";
+  }
+  else
+  {
+    print "   ".$str." :: ".$t->get_id ()."\n";
+  }
+}
 
 #========================================================================#
 

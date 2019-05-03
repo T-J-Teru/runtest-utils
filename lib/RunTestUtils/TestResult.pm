@@ -5,6 +5,8 @@ use warnings;
 no indirect;
 no autovivification;
 
+use boolean;
+
 =pod
 
 =head1 NAME
@@ -191,7 +193,32 @@ sub get_testname {
 
   if ($self->get_toolname () eq "gdb")
   {
-    $testname =~ s#\s+\([^)]+\)$##;
+    my $keep_parenthesis = false;
+
+    # GDB has a rule that some text inside parenthesis at the end of the
+    # test list should be ignored when comparing test names.  These
+    # parenthesised expressions will give information like '(timeout)' or
+    # '(GDB internal error)'.
+    #
+    # However, some tests unhelpfully have a parenthesised expression at
+    # the end of the test name, which shouldn't be stripped off.  Here we
+    # special case tests that shouldn't be stripped, but otherwise do the
+    # stripping.
+    if ($testname =~ m#\s+\(ref_val_struct_[^)]+\)$#)
+    {
+      $keep_parenthesis = true;
+    }
+
+    if ($self->get_path () eq "gdb.fortran/complex.exp"
+          and ($testname =~ m/print \$_creal \([^)]+\)$/))
+    {
+      $keep_parenthesis = true;
+    }
+
+    if (not ($keep_parenthesis))
+    {
+      $testname =~ s#\s+\([^)]+\)$##;
+    }
   }
 
   $testname =~ s/\s*$//;

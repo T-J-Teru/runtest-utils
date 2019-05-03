@@ -1,6 +1,6 @@
 AC_PREREQ(2.69)
 
-AC_INIT([runtest-utils], [0.0.6], [andrew.burgess@embecosm.com])
+AC_INIT([runtest-utils], [0.0.7], [andrew.burgess@embecosm.com])
 AM_INIT_AUTOMAKE([foreign])
 
 AC_CHECK_PROGS([POD2MAN], [pod2man], [false])

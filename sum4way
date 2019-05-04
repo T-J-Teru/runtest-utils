@@ -92,7 +92,11 @@ use boolean;
 use Carp;
 use Carp::Assert;
 use RunTestUtils::SumFile;
+use RunTestUtils::FilterManager;
 use Getopt::Long;
+
+my $SYSCONFDIR = "$FindBin::Bin/etc";
+my $FILTERS_PATH = "$SYSCONFDIR/runtest-utils/filters/";
 
 #========================================================================#
 
@@ -109,6 +113,8 @@ if ($show_version)
   print "$FindBin::Script version $VERSION_NUMBER\n";
   exit (0);
 }
+
+RunTestUtils::FilterManager::load_filters ($FILTERS_PATH);
 
 my ($rev_a, $rev_b, $rev_c, $rev_d) = process_argv (@ARGV);
 

@@ -59,9 +59,13 @@ use FindBin;
 use lib "$FindBin::Bin/lib";
 use GiveHelp qw/usage/;         # Allow -h or --help command line options.
 use RunTestUtils::SumFile;
+use RunTestUtils::FilterManager;
 use List::MoreUtils qw/uniq/;
 use Getopt::Long;
 use boolean;
+
+my $SYSCONFDIR = "$FindBin::Bin/etc";
+my $FILTERS_PATH = "$SYSCONFDIR/runtest-utils/filters/";
 
 #========================================================================#
 
@@ -208,6 +212,8 @@ sub main {
 
   (defined ($filename1)) or usage ();
   (defined ($filename2)) or usage ();
+
+  RunTestUtils::FilterManager::load_filters ($FILTERS_PATH);
 
   my $results1 = load_results ($filename1);
   my $results2 = load_results ($filename2);

@@ -1,4 +1,4 @@
-SUBDIRS = lib
+SUBDIRS = etc lib
 
 bin_SCRIPTS = bin/compare-tests bin/sum2table bin/sum4way
 
@@ -10,6 +10,7 @@ CLEANFILES = $(bin_SCRIPTS)
 EXTRA_DIST = compare-tests sum2table sum4way
 
 do_subst = sed -e 's%use lib "$$FindBin::Bin/lib";%use lib "$$FindBin::Bin/../lib/perl5";%' \
+	       -e 's%my $$SYSCONFDIR = "$$FindBin::Bin/etc";%my $$SYSCONFDIR = "${sysconfdir}";%' \
 	       -e 's%"~~PACKAGE-VERSION~~"%"${PACKAGE_VERSION}"%'
 
 $(bin_SCRIPTS) : | bin

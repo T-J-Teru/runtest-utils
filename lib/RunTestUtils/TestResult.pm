@@ -135,93 +135,16 @@ sub get_testname {
   # Return cached testname if it exists.
   return $self->{ __testname__ } if (exists $self->{ __testname__ });
 
-  # Strip additional messages from the testname.
+  my $tool = $self->get_toolname ();
+  my $filter = RunTestUtils::FilterManager::find_filter ($tool);
+
   my $testname = $self->{ __original_testname__ };
-  $testname =~ s/\((?:first|second|third) time\)\s*//;
-  $testname =~ s/\(timeout\)\s*//;
-  $testname =~ s/struct_param_single_reg_loc"/struct_param_single_reg_loc/;
-  $testname =~ s/\(PRMS:? [^)]+\)\s*//;
-  $testname =~ s#(Couldn't compile) .*(gdb/testsuite/gdb.java/jnpe.java)#$1 $2#;
-  $testname =~ s#(Couldn't compile) .*(gdb/testsuite/gdb.[^/]+/.*)#$1 $2#;
-  $testname =~ s#(Cannot compile) .*(gdb/testsuite/gdb.[^/]+/.*)#$1 $2#;
-  $testname =~ s#\(open '.*(gdb/testsuite/gdb.[^/']+/[^']+)'\)#(open '$1')#;
-  $testname =~ s#print characters#print elements#;
-  $testname =~ s#with characters set to#with elements set to#;
-  $testname =~ s#((?:(?:verbose (?:off|on)|replace)): python exec \(open \(').*/gdb\.python/(?:py-pp-registration/)?py-pp-registration\.py('\)\.read \(\)\))#$1gdb.python/py-pp-registration.py$2#;
-  $testname =~ s#(get python valueof "sep_objfile\.build_id") \([0-9a-f]+\)#$1 \(HASH\)#;
-  $testname =~ s#(python print \(gdb\.lookup_objfile) \("[0-9a-f]+", (by_build_id=True\)\.filename\))#$1 \(HASH\), $2#;
-  $testname =~ s#source .*/(gdb.python/py-completion.py)#source $1#;
-  $testname =~ s#(set env LD_LIBRARY_PATH=).*(gdb.base/print-file-var-dlopen/)#$1$2#;
-  $testname =~ s#(get integer valueof "\$sp") \(\d+\)#$1#;
-  $testname =~ s#.*(gdb\.base/break-fun-addr/break-fun-addr[12]:)#$1#;
-  $testname =~ s#(generate-core-file) .*(gdb\.btrace/gcore/core)#$1 $2#;
-  $testname =~ s#(set env LD_LIBRARY_PATH=).*(gdb/testsuite/gdb.base/):#$1$2#;
-  $testname =~ s#"mypid" \(\d+\)#"mypid" \(XXXX\)#;
-  $testname =~ s#threaded: attempt \d+: attach \(pass (\d)\), pending signal catch#threaded: attempt XX: attach \(pass $1\), pending signal catch#;
-  $testname =~ s#get integer valueof "\(int\) munmap \(\d+, 4096\)"#get integer valueof "\(int\) munmap \(ADDRESS, 4096\)"#;
+  $testname = $filter->filter_testname ($tool, $self->get_path (),
+                                        $testname);
 
-  if ($self->get_path () eq "gdb.reverse/insn-reverse.exp")
-  {
-    $testname =~ s#0x[0-9a-f]{8,16}#HEX-ADDR#g;
-  }
-
-  if ($self->get_path () eq "gdb.opt/inline-break.exp")
-  {
-    $testname =~ s#(address: break \*0x)[0-9a-f]{8,16}#$1HEX-ADDR#g;
-  }
-
-  if ($self->get_path () eq "gdb.base/sss-bp-on-user-bp.exp")
-  {
-    $testname =~ s#b \*0x[0-9a-f]{8,16}#b \*0xHEX-ADDR#;
-  }
-
-  if ($self->get_path () eq "gdb.threads/process-dies-while-handling-bp.exp")
-  {
-    $testname =~ s#(non_stop=off: cond_bp_target=0: inferior 1 exited) \([^)]+\)#$1 \(ERROR REASON\)#;
-    $testname =~ s#(non_stop=on: cond_bp_target=1: inferior 1 exited) \([^)]+\)#$1 \(ERROR REASON\)#;
-  }
-
-  if ($self->get_path () eq "gdb.guile/scm-ports.exp")
-  {
-    $testname =~ s#(get valueof "\$sp" )\([0-9]+\)#$1\(VALUE\)#;
-  }
-
-  if ($self->get_path () eq "gdb.base/batch-exit-status.exp")
-  {
-    $testname =~ s#( -x )(.*)(gdb/testsuite/gdb.base/batch-exit-status.(:?bad|good)-commands)#$1$3#
-  }
-
-  if ($self->get_toolname () eq "gdb")
-  {
-    my $keep_parenthesis = false;
-
-    # GDB has a rule that some text inside parenthesis at the end of the
-    # test list should be ignored when comparing test names.  These
-    # parenthesised expressions will give information like '(timeout)' or
-    # '(GDB internal error)'.
-    #
-    # However, some tests unhelpfully have a parenthesised expression at
-    # the end of the test name, which shouldn't be stripped off.  Here we
-    # special case tests that shouldn't be stripped, but otherwise do the
-    # stripping.
-    if ($testname =~ m#\s+\(ref_val_struct_[^)]+\)$#)
-    {
-      $keep_parenthesis = true;
-    }
-
-    if ($self->get_path () eq "gdb.fortran/complex.exp"
-          and ($testname =~ m/print \$_creal \([^)]+\)$/))
-    {
-      $keep_parenthesis = true;
-    }
-
-    if (not ($keep_parenthesis))
-    {
-      $testname =~ s#\s+\([^)]+\)$##;
-    }
-  }
-
+  # A few, very generic cleanups.
   $testname =~ s/\s*$//;
+  $testname =~ s/^\s*//;
 
   # Cache and return the testname
   $self->{ __testname__ } = $testname;

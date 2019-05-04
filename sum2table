@@ -134,6 +134,10 @@ use List::MoreUtils qw/uniq/;
 use Getopt::Long;
 use Carp::Assert;
 use RunTestUtils::SumFile;
+use RunTestUtils::FilterManager;
+
+my $SYSCONFDIR = "$FindBin::Bin/etc";
+my $FILTERS_PATH = "$SYSCONFDIR/runtest-utils/filters/";
 
 #========================================================================#
 
@@ -521,6 +525,8 @@ sub main {
     }
     $sort = build_sort_spec ($sort);
   }
+
+  RunTestUtils::FilterManager::load_filters ($FILTERS_PATH);
 
   my $results_1 = process_file ($filename);
   my $results_2 = undef;

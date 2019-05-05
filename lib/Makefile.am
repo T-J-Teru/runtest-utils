@@ -4,7 +4,3 @@ SUBDIRS = RunTestUtils
 
 perllibdir = $(libdir)/perl5/
 dist_perllib_DATA = GiveHelp.pm
-
-
-
-

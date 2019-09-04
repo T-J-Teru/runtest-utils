@@ -33,7 +33,7 @@ sum4way - 4 way comparison between 4 summary files
 
 =head1 OPTIONS
 
-B<compare> [-h|--help]
+B<sum4way> [-h|--help]
            [-o|--org]
            [-d|--dump-ids]
            NAME1=PATH1 NAME2=PATH2 NAME3=PATH3 NAME4=PATH4

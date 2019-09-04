@@ -72,6 +72,18 @@ sub filter_testname {
   $testname =~ s#threaded: attempt \d+: attach \(pass (\d)\), pending signal catch#threaded: attempt XX: attach \(pass $1\), pending signal catch#;
   $testname =~ s#get integer valueof "\(int\) munmap \(\d+, 4096\)"#get integer valueof "\(int\) munmap \(ADDRESS, 4096\)"#;
 
+  if (($path eq "gdb.base/break-interp.exp")
+        or ($path eq "gdb.base/prelink.exp")
+        or ($path eq "gdb.base/attach-pie-misread.exp")
+        or ($path eq "gdb.threads/dlopen-libpthread.exp"))
+  {
+    $testname =~ s#copy libpthread-2\.\d+\.so to libpthread.so\.\d+#copy libpthread-2.VERSION.so to libpthread.so.VERSION#;
+    $testname =~ s#copy ld-2\.\d+\.so to ld-linux-x86-64\.so\.\d+#copy ld-2.VERSION.so to ld-linux-x86-64.so.VERSION#;
+    $testname =~ s#copy libc-2\.\d+\.so to libc\.so\.\d+#copy libc-2.VERSION.so to libc.so.VERSION#;
+    $testname =~ s#copy libm-2\.\d+\.so to libm\.so\.\d+#copy libm-2.VERSION.so to libm.so.VERSION#;
+    $testname =~ s#copy ld-2\.\d+\.so to break-interp-LDprelink(NO|YES)debug(IN|NO)#copy ld-2.VERSION.so to break-interp-LDprelink${1}debug${2}#;
+  }
+
   if ($path eq "gdb.reverse/insn-reverse.exp")
   {
     $testname =~ s#0x[0-9a-f]{8,16}#HEX-ADDR#g;

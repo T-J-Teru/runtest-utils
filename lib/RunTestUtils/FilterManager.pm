@@ -23,10 +23,14 @@ no autovivification;
 use Carp;
 use Carp::Assert;
 use Module::Load;
+use boolean;
 
 use RunTestUtils::GenericFilter;
+use RunTestUtils::NullFilter;
 
 my $FILTERS = {};
+
+my $FILTERS_LOADED = false;
 
 =pod
 
@@ -79,9 +83,17 @@ created and returned.
 sub find_filter {
   my $tool = shift;
 
-  my $filter = $FILTERS->{$tool};
-  (defined $filter)
-    or $filter = RunTestUtils::GenericFilter->new (-tool => $tool);
+  my $filter = undef;
+  if (not $FILTERS_LOADED)
+  {
+    $filter = RunTestUtils::NullFilter->new (-tool => $tool);
+  }
+  else
+  {
+    $filter = $FILTERS->{$tool};
+    (defined $filter)
+      or $filter = RunTestUtils::GenericFilter->new (-tool => $tool);
+  }
   return $filter;
 }
 
@@ -113,6 +125,8 @@ sub load_filters {
 
   closedir $dh or
     croak ("failed to close filters directory $path: $!");
+
+  $FILTERS_LOADED = true;
 }
 
 #========================================================================#

@@ -48,7 +48,23 @@ The methods for this module are listed here:
 
 =cut
 
-#============================================================================#
+#========================================================================#
+
+=pod
+
+=item I<Public>: B<get_original_testname>
+
+Return the original testname for this test.  This is the unfiltered
+testname.
+
+=cut
+
+sub get_original_testname {
+  my $self = shift;
+  return $self->{__original_testname__};
+}
+
+#========================================================================#
 
 =pod
 

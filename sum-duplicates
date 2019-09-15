@@ -1,0 +1,257 @@
+#!/usr/bin/perl
+
+# This file is part of runtest-utils.
+#
+# runtest-utils is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# runtest-utils is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with runtest-utls.  If not, see <https://www.gnu.org/licenses/>.
+
+use warnings;
+use strict;
+no indirect;
+no autovivification;
+
+# Converted to a real package number by autotools.
+my $VERSION_NUMBER = "~~PACKAGE-VERSION~~";
+
+#========================================================================#
+
+=pod
+
+=head1 NAME
+
+sum-duplicates - Find duplicate test names in a DejaGNU sum file.
+
+=head1 OPTIONS
+
+B<sum2table> [-h|--help] [--version] [--summary]
+             SUM_FILE_1
+
+=head1 SYNOPSIS
+
+Run on a single DejaGNU summary file and produce a count of duplicate test
+names.  Results are listed by directory of test scripts, and then by each
+individual test script, for example:
+
+  tool.directory                      TOTAL
+    + tool.directory/script1.exp      COUNT
+    + tool.directory/script2.exp      COUNT
+    + tool.directory/script3.exp      COUNT
+
+If the user provides the I<--summary> option then the results per script
+are not printed, so you get a set of lines like:
+
+  tool.directory                      TOTAL
+
+=cut
+
+#========================================================================#
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use GiveHelp qw/usage/;         # Allow -h or --help command line options.
+use boolean;
+use List::Util qw/max/;
+use List::MoreUtils qw/uniq/;
+use Getopt::Long;
+use Carp::Assert;
+use RunTestUtils::SumFile;
+use RunTestUtils::FilterManager;
+
+my $SYSCONFDIR = "$FindBin::Bin/etc";
+my $FILTERS_PATH = "$SYSCONFDIR/runtest-utils/filters/";
+
+#========================================================================#
+
+exit (main ());
+
+#========================================================================#
+
+=pod
+
+=head1 METHODS
+
+The following methods are defined in this script.
+
+=over 4
+
+=cut
+
+#========================================================================#
+
+=pod
+
+=item B<main>
+
+Main function.  Called with no argument, returns exit status.
+
+=cut
+
+sub main {
+  my @filters = ();
+  my $show_version = false;
+  my $show_summary = false;
+
+  GetOptions ("version" => \$show_version,
+              "summary" => \$show_summary);
+
+  if ($show_version)
+  {
+    print "$FindBin::Script version $VERSION_NUMBER\n";
+    exit (0);
+  }
+
+  my $filename = shift @ARGV;
+  (defined $filename) or usage ();
+
+  # Load the testname filters, and process the summary file.
+  RunTestUtils::FilterManager::load_filters ($FILTERS_PATH);
+  my $summary_file = RunTestUtils::SumFile->parse ($filename);
+  my @results = $summary_file->results ();
+
+  my $counts = {};
+  foreach my $r (@results)
+  {
+    my $script = $r->get_path ();
+    my $testname = $r->get_original_testname ();
+
+    # We expect the script name to be something like:
+    #    a/b/c/d.exp
+    # split this into 'a/b/c' and 'd.exp'.
+
+    $script =~ m#^(.*)/([^/]+.exp)$#;
+    my ($script_dir, $base_script) = ($1, $2);
+
+    ((defined ($script_dir)) and (defined ($base_script))) or
+      die "Failed to split '$script' (undefined value)";
+    (($script_dir ne "") and ($base_script ne "")) or
+      die "Failed to split '$script' (empty string)";
+
+    # Now we push the test into the COUNTS hash, splitting by SCRIPT_DIR
+    # and BASE_SCRIPT, update all of the duplicte count fields.
+    if (not (exists ($counts->{$script_dir})))
+    {
+      $counts->{$script_dir} = { name => $script_dir,
+                                 duplicate_count => 0,
+                                 per_script_duplicates => {} };
+    }
+    my $data1 = $counts->{$script_dir};
+
+    if (not (exists ($data1->{per_script_duplicates}->{$base_script})))
+    {
+      $data1->{per_script_duplicates}->{$base_script}
+        = { name => $script,
+            duplicate_count => 0,
+            per_test_counts => {} };
+    }
+    my $data2 = $data1->{per_script_duplicates}->{$base_script};
+
+    $data2->{per_test_counts}->{$testname} = 0 unless
+      (exists ($data2->{per_test_counts}->{$testname}));
+
+    if ($data2->{per_test_counts}->{$testname} > 0)
+    {
+      $data1->{duplicate_count}++;
+      $data2->{duplicate_count}++;
+    }
+    $data2->{per_test_counts}->{$testname}++;
+  }
+
+  # Compute longest length of script name that has a non-zero number of
+  # duplicates, this will be used to pretty format the output.
+  my $max_length_of_name = 0;
+  foreach my $entry (values %{$counts})
+  {
+    next if ($entry->{duplicate_count} == 0);
+
+    if ($show_summary)
+    {
+      $max_length_of_name = max ($max_length_of_name,
+                                 length ($entry->{name}));
+    }
+    else
+    {
+      foreach my $i (values (%{$entry->{per_script_duplicates}}))
+      {
+        $max_length_of_name = max ($max_length_of_name, length ($i->{name}));
+      }
+    }
+  }
+
+  # Sort by count of duplicates in each test directory.
+  my @entries = sort {$b->{duplicate_count} <=> $a->{duplicate_count}}
+    values %{$counts};
+
+  # A prefix used from printing nested script results.
+  my $prefix = "  + ";
+
+  # Now print the results.
+  my $total = 0;
+  my $first = true;
+  foreach my $entry (@entries)
+  {
+    next if ($entry->{duplicate_count} == 0);
+
+    if (not $show_summary)
+    {
+      if (not $first)
+      {
+        print "\n";
+      }
+      else
+      {
+        $first = false;
+      }
+    }
+
+    # Print the summary header line.  The '+ 4' here a
+    printf "%-*s\t%6d\n",
+      ($max_length_of_name + length ($prefix)),
+      $entry->{name},
+      $entry->{duplicate_count};
+
+    $total += $entry->{duplicate_count};
+
+    if (not $show_summary)
+    {
+      # Now print a line for each individule test script.
+      my @inner = sort {$b->{duplicate_count} <=> $a->{duplicate_count}}
+        values (%{$entry->{per_script_duplicates}});
+      foreach my $i (@inner)
+      {
+        next if ($i->{duplicate_count} == 0);
+
+        printf "%s%-*s\t%6d\n",
+          $prefix,
+          $max_length_of_name,
+          $i->{name},
+          $i->{duplicate_count};
+      }
+    }
+  }
+
+  print "\n" if (not $show_summary);
+
+  printf "%-*s\t%6d\n",
+    ($max_length_of_name + length ($prefix)),
+    "Total", $total;
+
+  return 0;
+}
+
+#========================================================================#
+
+=pod
+
+=back
+
+=cut

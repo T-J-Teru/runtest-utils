@@ -15,7 +15,7 @@ dnl along with runtest-utls.  If not, see <https://www.gnu.org/licenses/>.
 
 AC_PREREQ(2.69)
 
-AC_INIT([runtest-utils], [0.0.10], [andrew.burgess@embecosm.com])
+AC_INIT([runtest-utils], [0.0.11], [andrew.burgess@embecosm.com])
 AM_INIT_AUTOMAKE([foreign])
 
 AC_CHECK_PROGS([POD2MAN], [pod2man], [false])

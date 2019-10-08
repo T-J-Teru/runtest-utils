@@ -97,6 +97,7 @@ sub filter_testname {
     $testname =~ s#copy libc-2\.\d+\.so to libc\.so\.\d+#copy libc-2.VERSION.so to libc.so.VERSION#;
     $testname =~ s#copy libm-2\.\d+\.so to libm\.so\.\d+#copy libm-2.VERSION.so to libm.so.VERSION#;
     $testname =~ s#copy ld-2\.\d+\.so to break-interp-LDprelink(NO|YES)debug(IN|NO)#copy ld-2.VERSION.so to break-interp-LDprelink${1}debug${2}#;
+    $testname =~ s#(LDprelink(?:YES|NO)debug(?:IN|NO): (?:un)?prelink) .*/gdb.base/break-interp/(break-interp-LDprelink.*debug.*, second time)#$1 $2#
   }
 
   if ($path eq "gdb.reverse/insn-reverse.exp")

@@ -14,4 +14,5 @@
 # along with runtest-utls.  If not, see <https://www.gnu.org/licenses/>.
 
 filterdir = $(sysconfdir)/runtest-utils/filters
-dist_filter_DATA = .empty
+dist_filter_DATA = .empty \
+		   gdb.pm

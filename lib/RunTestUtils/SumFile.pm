@@ -263,18 +263,24 @@ sub _parse {
       assert (defined ($dir));
       assert (defined ($file));
 
-      # Create the new result.
-      my $test = RunTestUtils::TestResult->new (-directory => $dir,
-                                                -filename => $file,
-                                                -testname => $testname,
-                                                -status => $status,
-                                                -tool => $toolname);
-      assert (defined $test);
+      # Check we have a target to attach this result to.
       if (not defined $current_target)
       {
         print "Line: $_";
         croak ("result found without preceding target line");
       }
+      my $target = $current_target->{__name__};
+
+      # Create the new result.
+      my $test = RunTestUtils::TestResult->new (-directory => $dir,
+                                                -filename => $file,
+                                                -testname => $testname,
+                                                -status => $status,
+                                                -tool => $toolname,
+                                                -target => $target);
+
+      # Add the result to the current target.
+      assert (defined $test);
       push @{$current_target->{__results__}}, $test;
     }
   }

@@ -280,6 +280,7 @@ sub initialise {
   $self->{ __original_testname__ } = $args{ -testname };
   $self->{ __status__ } = $args{ -status };
   $self->{__tool__} = $args{ -tool };
+  $self->{__target__} = $args { -target };
 }
 
 #============================================================================#

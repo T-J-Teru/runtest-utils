@@ -25,6 +25,9 @@ use Carp::Assert;
 use RunTestUtils::TestResult;
 use boolean;
 
+# Default toolname if none is found in the summary file.
+my $DEFAULT_TOOL_NAME = "unknown";
+
 =pod
 
 =head1 NAME
@@ -58,11 +61,19 @@ The methods for this module are listed here:
 Return a list of RunTestUtils::TestResult object that are the results in
 this summary file.
 
+B<NOTE:> Currently only the results for the first target are returned.
+
 =cut
 
 sub results {
   my $self = shift;
-  return @{$self->{__results__}};
+  my $target = $self->{__targets__}->[0];
+  if (not defined $target)
+  {
+    return [];
+  }
+
+  return @{$target->{__results__}};
 }
 
 #========================================================================#
@@ -72,9 +83,8 @@ sub results {
 =item I<Public>: B<tool>
 
 Return a string that is the name of the tool for which these test were run
-on.
-
-B<NOTE:> Currently the tool name returned is always "unknown".
+on.  If the tool name was found in the summary file then the default value
+(currently "unknown") will be returned.
 
 =cut
 
@@ -98,16 +108,20 @@ sub parse {
   my $class = shift;
   my $filename = shift;
 
-  # Extract the tool name from the summary file.
-  my $toolname = _parse_tool_name ($filename);
-
-  # Parse the results from the summary file.
-  my @results = _parse_results ($filename, $toolname);
-
-  # Create a new object and return.
   my $self  = bless {}, $class;
-  $self->{__results__} = \@results;
-  $self->{__tool__} = $toolname;
+  $self->{__tool__} = undef;
+  $self->{__targets__} = [];
+  $self->{__filename__} = $filename;
+
+  # Now do the actual parsing.
+  $self->_parse ();
+
+  # Ensure that we have a toolname.
+  if (not defined $self->{__tool__})
+  {
+    $self->{__tool__} = $DEFAULT_TOOL_NAME;
+  }
+
   return $self;
 }
 
@@ -115,18 +129,20 @@ sub parse {
 
 =pod
 
-=item I<Private>: B<_parse_results>
+=item I<Private>: B<_parse>
 
-A function to parse the test results out of a summary file, returns a list
-of RunTestUtils::TestResult object.
+A function to parse the contents of the summary file.  Results are stored
+into the RunTestUtils::SumFile object passed in as the first argument.
 
 =cut
 
-sub _parse_results {
-  my $filename = shift;
-  my $toolname = shift;
+sub _parse {
+  my $self = shift;
 
-  my @results;
+  my $filename = $self->{__filename__};
+  my $toolname = $DEFAULT_TOOL_NAME;
+  my $current_target = undef;
+
   open my $in, $filename
     or croak ("Failed to open '$filename': $!");
 
@@ -137,10 +153,33 @@ sub _parse_results {
 
   while (<$in>)
   {
+    # Spot the tool name.
+    if (m#^\s+=== (.*) tests ===\s*$#)
+    {
+      $toolname = $1;
+      if ((defined $self->{__tool__})
+            and ($self->{__tool__} ne $toolname))
+      {
+        croak ("multiple tool names in summary file '".$self->{__tool__}.
+                 "' and '".$toolname."'");
+      }
+      $self->{__tool__} = $toolname;
+      next;
+    }
+
+    if (m#^Running target (.*)$#)
+    {
+      my $target_name = $1;
+      $current_target = { __name__ => $target_name,
+                          __results__ => [] };
+      push @{$self->{__targets__}}, $current_target;
+      next;
+    }
+
     # Some testsuites (like GCC) don't prefix all test results with the
     # name of the exp file being run, instead, we must pull the name from
     # the previous Running line.
-    if (m#^Running .*/testsuite/(.*) \.\.\.$#)
+    if (m#^Running .*/testsuite/(.*\.exp) \.\.\.$#)
     {
       # Some testsuites, such as GDB when run in parallel, don't produce
       # Running lines at all, and we should grab the name of the exp file
@@ -157,6 +196,7 @@ sub _parse_results {
       $expfile->{ __full_name__ } = $1;
       ($expfile->{ __dir__ }, $expfile->{ __file__ })
         = _split_full_exp_file_name ($expfile->{ __full_name__ });
+      next;
     }
 
     # This is a test status line.
@@ -229,48 +269,18 @@ sub _parse_results {
                                                 -testname => $testname,
                                                 -status => $status,
                                                 -tool => $toolname);
-      defined $test or die;
-      push @results, $test;
+      assert (defined $test);
+      if (not defined $current_target)
+      {
+        print "Line: $_";
+        croak ("result found without preceding target line");
+      }
+      push @{$current_target->{__results__}}, $test;
     }
   }
 
   close $in
     or croak ("Failed to close '$filename': $!");
-
-  return @results;
-}
-
-#========================================================================#
-
-=pod
-
-=item I<Private>: B<_parse_tool_name>
-
-Parse the name of the tool for which the tests were run from filename
-passed as a parameter.
-
-=cut
-
-sub _parse_tool_name {
-  my $filename = shift;
-
-  open my $in, $filename
-    or croak ("Failed to open '$filename': $!");
-
-  my $toolname = "unknown";
-  while (<$in>)
-  {
-    if (m/^\s+=== (\S+) tests ===/)
-    {
-      $toolname = $1;
-      last;
-    }
-  }
-
-  close $in
-    or croak ("Failed to close '$filename': $!");
-
-  return $toolname;
 }
 
 #========================================================================#

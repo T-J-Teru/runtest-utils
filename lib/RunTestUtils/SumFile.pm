@@ -56,24 +56,64 @@ The methods for this module are listed here:
 
 =pod
 
+=item I<Public>: B<targets>
+
+Return a list of the target names present in this summary file.  The result
+is a list of strings.
+
+=cut
+
+sub targets {
+  my $self = shift;
+  my @targets;
+  foreach my $t (@{$self->{__targets__}})
+  {
+    push @targets, $t->{__name__};
+  }
+  return @targets;
+}
+
+#========================================================================#
+
+=pod
+
 =item I<Public>: B<results>
 
 Return a list of RunTestUtils::TestResult object that are the results in
 this summary file.
 
-B<NOTE:> Currently only the results for the first target are returned.
+This method takes an optional string that is the name of a target (see the
+targets method), only results for that target are returned.
+
+If no target name is passed then results for all targets are returned.
+Each result object knows for which target the result was obtained.
 
 =cut
 
 sub results {
   my $self = shift;
-  my $target = $self->{__targets__}->[0];
+  my $target = shift;
+
   if (not defined $target)
   {
-    return [];
+    my @results;
+    foreach my $t (@{$self->{__targets__}})
+    {
+      push @results, @{$t->{__results__}};
+    }
+    return @results;
   }
-
-  return @{$target->{__results__}};
+  else
+  {
+    foreach my $t (@{$self->{__targets__}})
+    {
+      if ($t->{__name__} eq $target)
+      {
+        return @{$t->{__results__}};
+      }
+    }
+    croak ("no results for target '$target'");
+  }
 }
 
 #========================================================================#

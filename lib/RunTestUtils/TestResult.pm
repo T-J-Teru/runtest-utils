@@ -52,6 +52,21 @@ The methods for this module are listed here:
 
 =pod
 
+=item I<Public>: B<get_target>
+
+Return a string, the name of the target for which this is a test result.
+
+=cut
+
+sub get_target {
+  my $self = shift;
+  return $self->{__target__};
+}
+
+#========================================================================#
+
+=pod
+
 =item I<Public>: B<get_original_testname>
 
 Return the original testname for this test.  This is the unfiltered

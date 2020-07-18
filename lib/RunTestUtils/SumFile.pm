@@ -56,6 +56,21 @@ The methods for this module are listed here:
 
 =pod
 
+=item I<Public>: B<filename>
+
+Return the path to the summary file that was parsed.
+
+=cut
+
+sub filename {
+  my $self = shift;
+  return $self->{__filename__};
+}
+
+#========================================================================#
+
+=pod
+
 =item I<Public>: B<targets>
 
 Return a list of the target names present in this summary file.  The result

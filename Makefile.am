@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with runtest-utls.  If not, see <https://www.gnu.org/licenses/>.
 
-SUBDIRS = etc lib
+SUBDIRS = etc lib testsuite
 
 bin_SCRIPTS = bin/compare-tests bin/sum2table bin/sum4way bin/sum-duplicates
 

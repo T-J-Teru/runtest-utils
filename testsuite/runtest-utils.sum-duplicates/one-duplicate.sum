@@ -1,0 +1,17 @@
+Test Run By USERNAME on Sun Sep  6 10:52:20 2020
+Native configuration is x86_64-pc-linux-gnu
+
+		=== toolname tests ===
+
+Schedule of variations:
+    unix
+
+Running target unix
+Running /path/to/project/build/toolname/testsuite/../../../src/toolname/testsuite/toolname.subdir/testscript.exp ...
+PASS: toolname.subdir/testscript.exp: aaaa
+PASS: toolname.subdir/testscript.exp: aaaa
+PASS: toolname.subdir/testscript.exp: bbbb
+
+		=== toolname Summary ===
+
+# of expected passes		2

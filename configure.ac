@@ -28,6 +28,7 @@ AC_CONFIG_FILES([Makefile \
                  etc/runtest-utils/Makefile \
                  etc/runtest-utils/filters/Makefile \
                  lib/Makefile \
-                 lib/RunTestUtils/Makefile])
+                 lib/RunTestUtils/Makefile
+                 testsuite/Makefile])
 
 AC_OUTPUT

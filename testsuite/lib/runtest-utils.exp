@@ -1,0 +1,573 @@
+# This file is part of runtest-utils.
+#
+# runtest-utils is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# runtest-utils is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with runtest-utls.  If not, see <https://www.gnu.org/licenses/>.
+
+# Find tool NAME and return the path to the tool.
+proc find_tool { name } {
+    global srcdir
+
+    # Ideally we should be running the tools from the bin/ directory
+    # of the build tree, however, right now these scripts don't work
+    # as they look for the filters in the final install location.
+    #
+    # One this issue is fixed then this can be updated.
+    foreach path [list "$srcdir/../${name}"] {
+        if [file executable $path] {
+            return $path
+        }
+    }
+
+    warning "could not file tool '$name'"
+    return ""
+}
+
+# The directory into which output files should be placed.
+set runtest_utils_output_directory ""
+
+# The source directory for the current test.  Setup below when each
+# test starts running.
+set runtest_utils_test_srcdir ""
+
+# A map between toolname and a list of valid keys for that spec.  This
+# is setup in default_runtest-utils_init below.
+array set valid_spec_keys {}
+
+# Builds the path to a file NAME in the current test scripts output
+# directory.
+proc create_output_file { name } {
+    global runtest_utils_output_directory
+
+    return [file join $runtest_utils_output_directory $name]
+}
+
+# Load a test specification from FILENAME, return a named array that
+# is the test specification.  Any temporary files are written to
+# OUTDIR, which defaults to RUNTEST_UTILS_OUTPUT_DIRECTORY.
+#
+# A test specification is a file containing key value pairs, each key
+# occurs at the start of a line, followed by a colon, followed by a
+# single space, then the value, which continues to the end of the
+# line.  For example, here the key is 'stderr', and the value is
+# 'filename':
+#
+#     stderr: filename
+#
+# Blank lines are ignored in a specification file, as are lines
+# starting with a '#' character.
+#
+# Only the set of known keys are accepted, anything else will result
+# in an error.  The currently known keys are:
+#
+# sum1 sum2 args stdout stderr exitvalue
+#
+# For one key that would normally specifiy a filename it is possible
+# to use the value '---'.  In this case after all the key/value pairs
+# a single line containing '---' should appeaer in the spec file, and
+# all lines after that represent the contents of the file for that
+# key.  As an example:
+#
+#     stderr: ---
+#     ---
+#     Some error message
+#     that takes multiple lines.
+#
+# In this case the two lines after '---' will be copied into a
+# temporary file and this file will be used as the value for the
+# 'stderr' key.  Only one values file can be inlined in this way.
+proc load_spec_file { filename {outdir ""} } {
+    global runtest_utils_test_srcdir
+    global runtest_utils_output_directory
+    global valid_spec_keys
+
+    if { $outdir == "" } {
+        set outdir $runtest_utils_output_directory
+    }
+
+    if { ![file readable $filename] } {
+        set tmp [file join $runtest_utils_test_srcdir $filename]
+        if { [file readable $tmp] } {
+            set filename $tmp
+        }
+        if { ![file readable $filename] } {
+            error "couldn't file '$filename'"
+            return 0
+        }
+    }
+
+    verbose "Loading test spec file: $filename"
+
+    # The array to hold the spec we are loading.
+    array set spec {}
+
+    # These keys are filenames and should be adjusted to include the
+    # full path to the file.
+    set keys_that_are_filenames [list sum1 sum2 sum3 sum4 stdout stderr]
+
+    # The set of valid keys for this tool.  Extracted from
+    # valid_spec_keys once we know which tool we are using.
+    set valid_keys {}
+
+    # The name of the tool.  This is set based on the value of the
+    # 'tool' key.
+    set toolname ""
+
+    # If a key has the value '---' then the content of this file is
+    # inline at the end of this specfile.  This variable holds the
+    # name of the temporary file into which the inline content is
+    # copied.
+    set inline_filename ""
+
+    # Now open the spec file and process its contents.
+    set fh [open $filename r]
+    while 1 {
+        gets $fh line
+        if [eof $fh] break
+        # Skip comments and blank lines in the spec file.
+        if [regexp "^#" $line] { continue }
+        if [regexp "^\\s*$" $line] { continue }
+
+        if { $line == "---" } {
+            if { $inline_filename == "" } {
+                error "unexpected inline file content in '$filename'"
+                return 0
+            }
+
+            # Copy the remaining lines into the filename pointed to by
+            # INLINE_FILENAME.
+
+            set out [open $inline_filename w]
+            while 1 {
+                gets $fh line
+                if [eof $fh] break
+                puts $out $line
+            }
+            close $out
+            set inline_filename ""
+            break
+        }
+
+        # Everything before the first ':' is the key, everything after
+        # is the value.
+        if {![regexp "^(\[^:\]+)\\s*:\\s*(.*)$" $line matched key value]} {
+            error "invalid line '$line' in '$filename'"
+            return 0
+        }
+
+        if { $toolname == "" && $key != "tool" } {
+            error "found key '$key' before 'tool' in '$filename'"
+            return 0
+        } elseif { $key == "tool" } {
+            set toolname $value
+            if { ![info exists valid_spec_keys($toolname)] } {
+                error "unknown tool '$toolname' in '$filename'"
+                return 0
+            }
+            set valid_keys $valid_spec_keys($toolname)
+        }
+
+        # Check that KEY is a known key.
+        set found false
+        foreach k $valid_keys {
+            if { $k == $key } {
+                set found true
+                break
+            }
+        }
+        if { !$found } {
+            error "invalid key '$key' in '$filename'"
+            return 0
+        }
+
+        # Adjust the value for those keys that represent filenames.
+        if {[lsearch -exact $keys_that_are_filenames $key] >= 0} {
+            if { [regexp "^-+$" $value] } {
+                if { $inline_filename != "" } {
+                    error "multiple uses of inline files in '$filename'"
+                    return 0
+                }
+
+                set basename [file rootname [file tail $filename]]
+                set inline_filename "$outdir/${basename}_${key}_inline"
+                set value $inline_filename
+            } else {
+                set value "$runtest_utils_test_srcdir/$value"
+            }
+        }
+
+        # Insert this value into the loaded spec.
+        set spec($key) $value
+    }
+    close $fh
+
+    if { $inline_filename != "" } {
+        error "missing inline file content in '$filename'"
+        return 0
+    }
+
+    return [array get spec]
+}
+
+# Local implemention of init function.
+proc default_runtest-utils_init { test_file_name } {
+    global objdir subdir srcdir
+    global runtest_utils_output_directory
+    global runtest_utils_test_srcdir
+    global valid_spec_keys
+
+    set valid_spec_keys(compare-tests) \
+        [list tool sum1 sum2 args stdout stderr exitvalue]
+    set valid_spec_keys(sum-duplicates) \
+        [list tool sum1 args stdout stderr exitvalue]
+
+    set test [file rootname [file tail $test_file_name]]
+    set runtest_utils_output_directory \
+        [file join $objdir $subdir $test]
+    file mkdir $runtest_utils_output_directory
+
+    set runtest_utils_test_srcdir [file join $srcdir $subdir]
+}
+
+# This is called from Dejgnu to perform initialisation tasks.
+proc runtest-utils_init { args } {
+    return [default_runtest-utils_init {*}$args]
+}
+
+# Extract the 'exitvalue' field from a test specification loaded by
+# load_spec_file.  If there was no exitvalue field in the
+# specification then the default value of 0 is returned.
+#
+# Argument SPEC_NAME is the name of the test specification variable in
+# the callers context, this will be accessed by upvar.
+proc test_spec_get_exitvalue { spec_name } {
+    upvar 1 ${spec_name} spec
+
+    set exitvalue 0
+    if [info exists spec(exitvalue)] {
+        set exitvalue $spec(exitvalue)
+    }
+
+    return $exitvalue
+}
+
+# Extract the 'args' field from a test specification loaded by
+# load_spec_file.  If there was no args field in the
+# specification then the default value of "" is returned.
+#
+# Argument SPEC_NAME is the name of the test specification variable in
+# the callers context, this will be accessed by upvar.
+proc test_spec_get_args { spec_name } {
+    upvar 1 ${spec_name} spec
+
+    set args ""
+    if [info exists spec(args)] {
+        set args $spec(args)
+    }
+
+    return $args
+}
+
+# Return the path to the executable tool that should be run for this
+# test.  The choice of executable is based on the 'tool' key from the
+# specification file loaded by load_spec_file.  If the tool is not
+# known then an error is given.
+#
+# Argument SPEC_NAME is the name of the test specification variable in
+# the callers context, this will be accessed by upvar.
+proc test_spec_get_program { spec_name } {
+    global COMPARE_TESTS SUM2TABLE SUM4WAY SUM_DUPLICATES
+
+    upvar 1 ${spec_name} spec
+
+    set tool $spec(tool)
+    if { $tool == "compare-tests" } {
+        return $COMPARE_TESTS
+    } elseif { $tool == "sum2table" } {
+        return $SUM2TABLE
+    } elseif { $tool == "sum4way" } {
+        return $SUM4WAY
+    } elseif { $tool == "sum-duplicates" } {
+        return $SUM_DUPLICATES
+    } else {
+        error "unknown tool '$tool'"
+        return ""
+    }
+}
+
+# The following is shamelessly stolen from binutils-gdb.
+#
+# Compare two files line-by-line.  FILE_1 is the actual output and FILE_2
+# is the expected output.  Ignore blank lines in either file.
+#
+# FILE_2 is a series of regexps, comments and # directives.  The directives
+# are:
+#
+#    #pass
+#        Treat the test as a PASS if everything up till this point has
+#        matched.  Ignore any remaining lines in either FILE_1 or FILE_2.
+#
+#    #failif
+#        Reverse the sense of the test: expect differences to exist.
+#
+#    #...
+#    REGEXP
+#        Skip all lines in FILE_1 until the first that matches REGEXP.
+#
+#    #?REGEXP
+#        Optionally match REGEXP against line from FILE_1.  If the REGEXP
+#        does not match then the next line from FILE_2 is tried.
+#
+# Other # lines are comments.  Regexp lines starting with the `!' character
+# specify inverse matching (use `\!' for literal matching against a leading
+# `!').  Skip empty lines in both files.
+#
+# The first optional argument is a list of regexp substitutions of the form:
+#
+#    EXP1 SUBSPEC1 EXP2 SUBSPEC2 ...
+#
+# This tells the function to apply each regexp substitution EXPi->SUBSPECi
+# in order to every line of FILE_2.
+#
+# Return nonzero if differences exist.
+proc regexp_diff { file_1 file_2 args } {
+    set eof -1
+    set end_1 0
+    set end_2 0
+    set differences 0
+    set diff_pass 0
+    set fail_if_match 0
+    set ref_subst ""
+    if { [llength $args] > 0 } {
+	set ref_subst [lindex $args 0]
+    }
+    if { [llength $args] > 1 } {
+	perror "Too many arguments to regexp_diff"
+	return 1
+    }
+
+    if [file exists $file_1] then {
+	set file_a [open $file_1 r]
+    } else {
+	perror "$file_1 doesn't exist"
+	return 1
+    }
+
+    if [file exists $file_2] then {
+	set file_b [open $file_2 r]
+    } else {
+	perror "$file_2 doesn't exist"
+	close $file_a
+	return 1
+    }
+
+    verbose " Regexp-diff'ing: $file_1 $file_2" 2
+
+    while { 1 } {
+	set line_a ""
+	set line_b ""
+	while { [string length $line_a] == 0 } {
+	    # Ignore blank line in FILE_1.
+	    if { [gets $file_a line_a] == $eof } {
+		set end_1 1
+		break
+	    }
+	}
+	while { [string length $line_b] == 0 || [string match "#*" $line_b] } {
+	    if { [string match "#pass" $line_b] } {
+		set end_2 1
+		set diff_pass 1
+		break
+	    } elseif { [string match "#failif" $line_b] } {
+		send_log "fail if no difference\n"
+		verbose "fail if no difference" 3
+		set fail_if_match 1
+	    } elseif { [string match "#..." $line_b] } {
+		if { [gets $file_b line_b] == $eof } {
+		    set end_2 1
+		    set diff_pass 1
+		    break
+		}
+		set negated [expr { [string index $line_b 0] == "!" }]
+		set line_bx [string range $line_b $negated end]
+		set n [expr { $negated ? "! " : "" }]
+		# Substitute on the reference.
+		foreach {name value} $ref_subst {
+		    regsub -- $name $line_bx $value line_bx
+		}
+		verbose "looking for $n\"^$line_bx$\"" 3
+		while { [expr [regexp "^$line_bx$" "$line_a"] == $negated] } {
+		    verbose "skipping    \"$line_a\"" 3
+		    if { [gets $file_a line_a] == $eof } {
+			set end_1 1
+			break
+		    }
+		}
+		break
+	    } elseif { [string match "#\\?*" $line_b] } {
+		if { ! $end_1 } {
+		    set line_b [string replace $line_b 0 1]
+		    set negated [expr { [string index $line_b 0] == "!" }]
+		    set line_bx [string range $line_b $negated end]
+		    set n [expr { $negated ? "! " : "" }]
+		    # Substitute on the reference.
+		    foreach {name value} $ref_subst {
+			regsub -- $name $line_bx $value line_bx
+		    }
+		    verbose "optional match for $n\"^$line_bx$\"" 3
+		    if { [expr [regexp "^$line_bx$" "$line_a"] != $negated] } {
+			break
+		    }
+		}
+	    }
+	    if { [gets $file_b line_b] == $eof } {
+		set end_2 1
+		break
+	    }
+	}
+
+	if { $diff_pass } {
+	    break
+	} elseif { $end_1 && $end_2 } {
+	    break
+	} elseif { $end_1 } {
+	    send_log "extra regexps in $file_2 starting with \"^$line_b$\"\nEOF from $file_1\n"
+	    verbose "extra regexps in $file_2 starting with \"^$line_b$\"\nEOF from $file_1" 3
+	    set differences 1
+	    break
+	} elseif { $end_2 } {
+	    send_log "extra lines in $file_1 starting with \"^$line_a$\"\nEOF from $file_2\n"
+	    verbose "extra lines in $file_1 starting with \"^$line_a$\"\nEOF from $file_2\n" 3
+	    set differences 1
+	    break
+	} else {
+	    set negated [expr { [string index $line_b 0] == "!" }]
+	    set line_bx [string range $line_b $negated end]
+	    set n [expr { $negated ? "! " : "" }]
+	    set s [expr { $negated ? "  " : "" }]
+	    # Substitute on the reference.
+	    foreach {name value} $ref_subst {
+		regsub -- $name $line_bx $value line_bx
+	    }
+	    verbose "regexp $n\"^$line_bx$\"\nline   \"$line_a\"" 3
+	    if { [expr [regexp "^$line_bx$" "$line_a"] == $negated] } {
+		send_log "regexp_diff match failure\n"
+		send_log "regexp $n\"^$line_bx$\"\nline   $s\"$line_a\"\n"
+		verbose "regexp_diff match failure\n" 3
+		set differences 1
+	    }
+	}
+    }
+
+    if { $differences == 0 && !$diff_pass && [eof $file_a] != [eof $file_b] } {
+	send_log "$file_1 and $file_2 are different lengths\n"
+	verbose "$file_1 and $file_2 are different lengths" 3
+	set differences 1
+    }
+
+    if { $fail_if_match } {
+	if { $differences == 0 } {
+	    set differences 1
+	} else {
+	    set differences 0
+	}
+    }
+
+    close $file_a
+    close $file_b
+
+    return $differences
+}
+
+# Run a test based on SPECFILE.  See load_spec_file for details on the
+# contents of SPECFILE.  Process the test and emit pass or fail as
+# appropriate.  Returns 0 if the test fails, otherwise returns 1.
+proc run_spec_test { specfile } {
+    # Place all output for this test into OUTDIR, a new directory
+    # created just for this one spec file.
+    set outdir [create_output_file [file rootname [file tail $specfile]]]
+    file mkdir $outdir
+
+    # Open the specfile and load in the key/value pairs.
+    array set spec [load_spec_file $specfile $outdir]
+
+    # Remove the full path to the specfile now that it has been
+    # loaded.  This means we only print the actual name of the file in
+    # test result lines.
+    set specfile [file tail $specfile]
+
+    # Build a command line from the spec.
+    set prog [test_spec_get_program spec]
+    set args [test_spec_get_args spec]
+    set cmdline "$prog $args"
+    foreach sfile [list sum1 sum2 sum3 sum4] {
+        if { ![info exists spec($sfile)] } {
+            break
+        }
+        set cmdline "$cmdline $spec($sfile)"
+    }
+
+    # Create output files to capture the output.
+    set outfile "$outdir/stdout"
+    set errfile "$outdir/stderr"
+
+    # Execute the command line, capturing the output.
+    verbose -log "Command '$cmdline'"
+    set res [catch "exec $cmdline >$outfile 2>$errfile" status]
+
+    # Find the expected exit value.
+    set exitvalue [test_spec_get_exitvalue spec]
+
+    # Check the exit value was correct.
+    if { $res != $exitvalue } {
+        fail "$specfile: incorrect exit value (expected '$exitvalue', got '$res')"
+        return 0
+    }
+
+    # Check the stdout and stderr.  If the spec file doesn't include a
+    # stdout or stderr file to check against then assume the generated
+    # file should be empty.
+    foreach stream { stdout stderr } {
+        if { $stream == "stdout" } {
+            set filename $outfile
+        } else {
+            set filename $errfile
+        }
+
+        if ![info exists spec($stream)] {
+            # Check that the generated stdout/stderr is empty.
+            if {[file size $filename] > 0} {
+                fail "$specfile: unexpected $stream"
+            return 0
+            }
+        } else {
+            # Check the generated stdout/stderr matches the expected.
+            if [regexp_diff $filename $spec($stream)] {
+                fail "$specfile: missmatching $stream"
+                return 0
+            }
+        }
+    }
+
+    # All checks complete.
+    pass $specfile
+
+    return 1
+}
+
+# Process all *.spec files in DIR and call run_spec_test on each.
+proc run_all_spec_tests { dir } {
+    set test_list [lsort [glob -nocomplain $dir/*.spec]]
+    foreach t $test_list {
+        run_spec_test $t
+    }
+}

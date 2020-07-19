@@ -36,6 +36,7 @@ sum4way - 4 way comparison between 4 summary files
 B<sum4way> [-h|--help]
            [-o|--org]
            [-d|--dump-ids]
+           [-t <TARGET>|--target=<TARGET>]
            NAME1=PATH1 NAME2=PATH2 NAME3=PATH3 NAME4=PATH4
 
 =head1 SYNOPSIS
@@ -96,6 +97,12 @@ a plain text list, the output is produced in emacs org-mode format.
 The I<-d> or I<--dump-ids> is for debug only, this dumps a list of all test
 IDs, and can be used to check which IDs the script is finding.
 
+When processing summary files with multiple targets in then the user must
+select which targets to compare using the I<--target> option.  The value
+passed to this option is a string, the name of a target.  If the script is
+not passed this option and the summary files have multiple targets, then a
+list of the available targets will be printed.
+
 =cut
 
 #========================================================================#
@@ -118,10 +125,12 @@ my $FILTERS_PATH = "$SYSCONFDIR/runtest-utils/filters/";
 my $org_format = false;
 my $dump_ids = false;
 my $show_version = false;
+my $target_name = undef;
 
 GetOptions ("version" => \$show_version,
             "org|o" => \$org_format,
-            "dump-ids|d" => \$dump_ids);
+            "dump-ids|d" => \$dump_ids,
+            "target|t=s" => \$target_name);
 
 if ($show_version)
 {
@@ -483,7 +492,38 @@ sub load_sum_file {
   my $filename = shift;
 
   my $summary_file = RunTestUtils::SumFile->parse ($filename);
-  my @results = $summary_file->results ();
+  my @targets = $summary_file->targets ();
+
+  my $selected_target = undef;
+  if (scalar (@targets) == 1)
+  {
+    if ((not defined $target_name) or
+          ($target_name eq $targets[0]))
+    {
+      $selected_target = $targets[0];
+    }
+  }
+  elsif (defined $target_name)
+  {
+    foreach my $t (@targets)
+    {
+      if ($t eq $target_name)
+      {
+        $selected_target = $t;
+        last;
+      }
+    }
+  }
+
+  if (not defined $selected_target)
+  {
+    print "File '$filename' contains the following targets:\n";
+    print "  ".join (", ", @targets)."\n";
+    print "Please select one of these using --target=TARGET.\n";
+    die "unable to select suitable target";
+  }
+
+  my @results = $summary_file->results ($selected_target);
 
   my %res;
   foreach my $r (@results)

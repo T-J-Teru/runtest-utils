@@ -37,6 +37,7 @@ B<compare-tests> [-h|--help] [--version]
                  [-q|--quiet] [-b|--bad-only]
                  [-c|--collapse-missing-scripts]
                  [-s|--summary]
+                 [-t <TARGET>|--target=<TARGET>]
                  SUM-FILE-BEFORE SUM-FILE-AFTER
 
 =head1 SYNOPSIS
@@ -58,6 +59,12 @@ With the I<--summary> flag, a summary of the comparison is produced.
 Instead of listing each test that has changed, just a summary list of the
 number of changes of each type is given.  Only types of change for which
 the count is 1 or more are listed.
+
+When processing summary files with multiple targets in then the user must
+select which targets to compare using the I<--target> option.  The value
+passed to this option is a string, the name of a target.  If the script is
+not passed this option and the summary files have multiple targets, then a
+list of the available targets will be printed.
 
 =head1 EXIT VALUE
 
@@ -97,6 +104,63 @@ The following methods are defined in this script.
 =over 4
 
 =cut
+
+#========================================================================#
+
+=pod
+
+=item B<find_target_name>
+
+Take two RunTestUtils::SumFile objects and the name of a target which can
+be undef, which should be a target passed by the user on the command line.
+
+Returns the name of the target to compare the results for from the two
+summary files.
+
+If the user specified no target (undef passed as the target name) and the
+summary files both contain a single target (which is the same target), then
+the name of this target is returned.
+
+If the user specified a target, return that target.
+
+Otherwise, print the list of targets in both summary files, and
+exit.
+
+=cut
+
+sub find_target_name {
+  my $sumfile1 = shift;
+  my $sumfile2 = shift;
+  my $target = shift;
+
+  if (defined $target)
+  {
+    return $target;
+  }
+
+  my @targets1 = $sumfile1->targets ();
+  my @targets2 = $sumfile2->targets ();
+
+  # If both summary files have one target, and it's the same target, then
+  # we're using that.
+  if ((scalar (@targets1) == 1) and (scalar (@targets2) == 1)
+        and ($targets1[0] eq $targets2[0]))
+  {
+    return $targets1[0];
+  }
+
+  # Either we have multiple targets in each summary file, or we have one
+  # target, but they are different.  In this case we want the user to tell
+  # us which target to pick, print some diagnostic information and exit.
+  print "Different, or multiple targets in each summary file.  Please select a target\n";
+  print "using the --target=<TARGET> command line option.\n";
+  print "\n";
+  print "Targets from '".$sumfile1->filename ()."':\n";
+  print "  ".join (", ", @targets1)."\n";
+  print "Targets from '".$sumfile2->filename ()."':\n";
+  print "  ".join (", ", @targets2)."\n";
+  exit (1);
+}
 
 #========================================================================#
 
@@ -168,9 +232,11 @@ sub all_keys {
 
 =item B<load_results>
 
-Takes the name of a summary file as an argument, loads the summary file and
-returns a hash-reference.  The keys of the hash are the test script names,
-and the values are themselves, hash-references.
+Takes a RunTestUtils::SumFile object and a string, the name of a target
+(from the summary file) and repacks the results from that summary file (for
+the named target) into a hash table and returns a hash-reference.  The keys
+of the hash are the test script names, and the values are themselves,
+hash-references.
 
 Each of these second level hash tables have keys that are the unique ID for
 a test and the value is TestResult object.
@@ -178,11 +244,10 @@ a test and the value is TestResult object.
 =cut
 
 sub load_results {
-  my $filename = shift;
+  my $summary_file = shift;
+  my $target = shift;
 
-  my $summary_file = RunTestUtils::SumFile->parse ($filename);
-  my @results = $summary_file->results ();
-
+  my @results = $summary_file->results ($target);
   my $result = {};
   foreach my $r (@results)
   {
@@ -210,11 +275,13 @@ sub main {
   my $quiet = false;
   my $show_version = false;
   my $summarise = false;
+  my $target_name = undef;
   GetOptions ("version" => \$show_version,
               "bad-only|b" => \$bad_only,
               "quiet|q" => \$quiet,
               "collapse-missing-scripts|c" => \$collapse,
-              "summary|s" => \$summarise);
+              "summary|s" => \$summarise,
+              "target|t=s" => \$target_name);
 
   if ($show_version)
   {
@@ -229,9 +296,13 @@ sub main {
   (defined ($filename2)) or usage ();
 
   RunTestUtils::FilterManager::load_filters ($FILTERS_PATH);
+  my $sumfile1 = RunTestUtils::SumFile->parse ($filename1);
+  my $sumfile2 = RunTestUtils::SumFile->parse ($filename2);
 
-  my $results1 = load_results ($filename1);
-  my $results2 = load_results ($filename2);
+  my $target = find_target_name ($sumfile1, $sumfile2, $target_name);
+
+  my $results1 = load_results ($sumfile1, $target);
+  my $results2 = load_results ($sumfile2, $target);
 
   my @all_scripts = all_keys ($results1, $results2);
 

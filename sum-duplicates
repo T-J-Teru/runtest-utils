@@ -116,134 +116,163 @@ sub main {
   # Load the testname filters, and process the summary file.
   RunTestUtils::FilterManager::load_filters ($FILTERS_PATH);
   my $summary_file = RunTestUtils::SumFile->parse ($filename);
-  my @results = $summary_file->results ();
 
-  my $counts = {};
-  foreach my $r (@results)
-  {
-    my $script = $r->get_path ();
-    my $testname = $r->get_original_testname ();
-
-    # We expect the script name to be something like:
-    #    a/b/c/d.exp
-    # split this into 'a/b/c' and 'd.exp'.
-
-    $script =~ m#^(.*)/([^/]+.exp)$#;
-    my ($script_dir, $base_script) = ($1, $2);
-
-    ((defined ($script_dir)) and (defined ($base_script))) or
-      die "Failed to split '$script' (undefined value)";
-    (($script_dir ne "") and ($base_script ne "")) or
-      die "Failed to split '$script' (empty string)";
-
-    # Now we push the test into the COUNTS hash, splitting by SCRIPT_DIR
-    # and BASE_SCRIPT, update all of the duplicte count fields.
-    if (not (exists ($counts->{$script_dir})))
-    {
-      $counts->{$script_dir} = { name => $script_dir,
-                                 duplicate_count => 0,
-                                 per_script_duplicates => {} };
-    }
-    my $data1 = $counts->{$script_dir};
-
-    if (not (exists ($data1->{per_script_duplicates}->{$base_script})))
-    {
-      $data1->{per_script_duplicates}->{$base_script}
-        = { name => $script,
-            duplicate_count => 0,
-            per_test_counts => {} };
-    }
-    my $data2 = $data1->{per_script_duplicates}->{$base_script};
-
-    $data2->{per_test_counts}->{$testname} = 0 unless
-      (exists ($data2->{per_test_counts}->{$testname}));
-
-    if ($data2->{per_test_counts}->{$testname} > 0)
-    {
-      $data1->{duplicate_count}++;
-      $data2->{duplicate_count}++;
-    }
-    $data2->{per_test_counts}->{$testname}++;
-  }
-
-  # Compute longest length of script name that has a non-zero number of
-  # duplicates, this will be used to pretty format the output.
+  my @targets = $summary_file->targets ();
+  my $all_targets_total = 0;
   my $max_length_of_name = 0;
-  foreach my $entry (values %{$counts})
-  {
-    next if ($entry->{duplicate_count} == 0);
-
-    if ($show_summary)
-    {
-      $max_length_of_name = max ($max_length_of_name,
-                                 length ($entry->{name}));
-    }
-    else
-    {
-      foreach my $i (values (%{$entry->{per_script_duplicates}}))
-      {
-        $max_length_of_name = max ($max_length_of_name, length ($i->{name}));
-      }
-    }
-  }
-
-  # Sort by count of duplicates in each test directory.
-  my @entries = sort {$b->{duplicate_count} <=> $a->{duplicate_count}}
-    values %{$counts};
 
   # A prefix used from printing nested script results.
   my $prefix = "  + ";
 
-  # Now print the results.
-  my $total = 0;
-  my $first = true;
-  foreach my $entry (@entries)
+  foreach my $target (@targets)
   {
-    next if ($entry->{duplicate_count} == 0);
-
-    if (not $show_summary)
+    my $base_prefix = "";
+    if (scalar (@targets) > 1)
     {
-      if (not $first)
+      if ($target ne $targets[0])
       {
         print "\n";
       }
+      print "[$target]\n";
+      $base_prefix = "  ";
+      $prefix = $base_prefix . $prefix;
+    }
+
+    my @results = $summary_file->results ($target);
+
+    my $counts = {};
+    foreach my $r (@results)
+    {
+      my $script = $r->get_path ();
+      my $testname = $r->get_original_testname ();
+
+      # We expect the script name to be something like:
+      #    a/b/c/d.exp
+      # split this into 'a/b/c' and 'd.exp'.
+
+      $script =~ m#^(.*)/([^/]+.exp)$#;
+      my ($script_dir, $base_script) = ($1, $2);
+
+      ((defined ($script_dir)) and (defined ($base_script))) or
+        die "Failed to split '$script' (undefined value)";
+      (($script_dir ne "") and ($base_script ne "")) or
+        die "Failed to split '$script' (empty string)";
+
+      # Now we push the test into the COUNTS hash, splitting by SCRIPT_DIR
+      # and BASE_SCRIPT, update all of the duplicte count fields.
+      if (not (exists ($counts->{$script_dir})))
+      {
+        $counts->{$script_dir} = { name => $script_dir,
+                                   duplicate_count => 0,
+                                   per_script_duplicates => {} };
+      }
+      my $data1 = $counts->{$script_dir};
+
+      if (not (exists ($data1->{per_script_duplicates}->{$base_script})))
+      {
+        $data1->{per_script_duplicates}->{$base_script}
+          = { name => $script,
+              duplicate_count => 0,
+              per_test_counts => {} };
+      }
+      my $data2 = $data1->{per_script_duplicates}->{$base_script};
+
+      $data2->{per_test_counts}->{$testname} = 0 unless
+        (exists ($data2->{per_test_counts}->{$testname}));
+
+      if ($data2->{per_test_counts}->{$testname} > 0)
+      {
+        $data1->{duplicate_count}++;
+        $data2->{duplicate_count}++;
+      }
+      $data2->{per_test_counts}->{$testname}++;
+    }
+
+    # Compute longest length of script name that has a non-zero number of
+    # duplicates, this will be used to pretty format the output.
+    foreach my $entry (values %{$counts})
+    {
+      next if ($entry->{duplicate_count} == 0);
+
+      if ($show_summary)
+      {
+        $max_length_of_name = max ($max_length_of_name,
+                                   length ($entry->{name}));
+      }
       else
       {
-        $first = false;
+        foreach my $i (values (%{$entry->{per_script_duplicates}}))
+        {
+          $max_length_of_name = max ($max_length_of_name, length ($i->{name}));
+        }
       }
     }
 
-    # Print the summary header line.  The '+ 4' here a
-    printf "%-*s\t%6d\n",
-      ($max_length_of_name + length ($prefix)),
-      $entry->{name},
-      $entry->{duplicate_count};
+    # Sort by count of duplicates in each test directory.
+    my @entries = sort {$b->{duplicate_count} <=> $a->{duplicate_count}}
+      values %{$counts};
 
-    $total += $entry->{duplicate_count};
-
-    if (not $show_summary)
+    # Now print the results.
+    my $total = 0;
+    my $first = true;
+    foreach my $entry (@entries)
     {
-      # Now print a line for each individule test script.
-      my @inner = sort {$b->{duplicate_count} <=> $a->{duplicate_count}}
-        values (%{$entry->{per_script_duplicates}});
-      foreach my $i (@inner)
-      {
-        next if ($i->{duplicate_count} == 0);
+      next if ($entry->{duplicate_count} == 0);
 
-        printf "%s%-*s\t%6d\n",
-          $prefix,
-          $max_length_of_name,
-          $i->{name},
-          $i->{duplicate_count};
+      if (not $show_summary)
+      {
+        if (not $first)
+        {
+          print "\n";
+        }
+        else
+        {
+          $first = false;
+        }
+      }
+
+      # Print the summary header line.
+      printf "%s%-*s\t%6d\n",
+        $base_prefix,
+        ($max_length_of_name + length ($prefix)),
+        $entry->{name},
+        $entry->{duplicate_count};
+
+      $total += $entry->{duplicate_count};
+
+      if (not $show_summary)
+      {
+        # Now print a line for each individule test script.
+        my @inner = sort {$b->{duplicate_count} <=> $a->{duplicate_count}}
+          values (%{$entry->{per_script_duplicates}});
+        foreach my $i (@inner)
+        {
+          next if ($i->{duplicate_count} == 0);
+
+          printf "%s%-*s\t%6d\n",
+            $prefix,
+            $max_length_of_name,
+            $i->{name},
+            $i->{duplicate_count};
+        }
       }
     }
+
+    print "\n" if (not $show_summary);
+
+    printf "%s%-*s\t%6d\n",
+      $base_prefix,
+      ($max_length_of_name + length ($prefix)),
+      "Total", $total;
+    $all_targets_total += $total;
   }
 
-  print "\n" if (not $show_summary);
-
-  printf "%-*s\t%6d\n",
-    ($max_length_of_name + length ($prefix)),
-    "Total", $total;
+  if (scalar (@targets) > 1)
+  {
+    printf "%-*s\t%6d\n",
+      ($max_length_of_name + length ($prefix) + 2),
+      "Total (All targets)", $all_targets_total;
+  }
 
   return 0;
 }

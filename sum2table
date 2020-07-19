@@ -449,27 +449,23 @@ sub build_table_columns {
 
 =item B<process_file>
 
-Takes the name of a file to load, and returns a hash containing the results
-loaded from the file.
+Takes a RunTestUtils::SumFile object and returns a hash reference to a hash
+containing the results loaded from the SumFile object.
 
-If the filename passed in is undefined, then a valid results hash is still
-returned, it will just contain no results.
-
-If the file fails to load for any other reason then the function will die.
+If the SumFile object passed in is undef, then undef is returned.
 
 =cut
 
 sub process_file {
-  my $filename = shift;
+  my $summary_file = shift;
+
+  if (not defined $summary_file)
+  {
+    return undef;
+  }
 
   my $results = { -by_testname => {},
                   -status_types => {} };
-  return $results if (not (defined ($filename)));
-
-  (-f $filename) and (-r $filename)
-    or die "File '$filename' is not a readable file\n";
-
-  my $summary_file = RunTestUtils::SumFile->parse ($filename);
   my @results = $summary_file->results ();
 
   foreach my $r (@results)
@@ -492,6 +488,74 @@ sub process_file {
 
 =pod
 
+=item B<find_target_name>
+
+Take two RunTestUtils::SumFile objects and the name of a target which can
+be undef, which should be a target passed by the user on the command line.
+
+Returns the name of the target to compare the results for from the two
+summary files.
+
+If the user specified no target (undef passed as the target name) and the
+summary files both contain a single target (which is the same target), then
+the name of this target is returned.
+
+If the user specified a target, return that target.
+
+Otherwise, print the list of targets in both summary files, and
+exit.
+
+The second summary file can also be undef.
+
+=cut
+
+sub find_target_name {
+  my $sumfile1 = shift;
+  my $sumfile2 = shift;
+  my $target = shift;
+
+  if (defined $target)
+  {
+    return $target;
+  }
+
+  my @targets1 = $sumfile1->targets ();
+  my @targets2;
+  if (defined $sumfile2)
+  {
+    @targets2 = $sumfile2->targets ();
+  }
+
+  # If both summary files have one target, and it's the same target, then
+  # we're using that.  Or, if the second summary file is not defined, and
+  # the first summary file only has one target, then we're using that.
+  if (((scalar (@targets1) == 1) and (scalar (@targets2) == 1)
+         and ($targets1[0] eq $targets2[0]))
+        or ((scalar (@targets1) == 1) and (not defined $sumfile2)))
+  {
+    return $targets1[0];
+  }
+
+  # Either we have multiple targets in each summary file, or we have one
+  # target, but they are different.  In this case we want the user to tell
+  # us which target to pick, print some diagnostic information and exit.
+  print "Different, or multiple targets in each summary file.  Please select a target\n";
+  print "using the --target=<TARGET> command line option.\n";
+  print "\n";
+  print "Targets from '".$sumfile1->filename ()."':\n";
+  print "  ".join (", ", @targets1)."\n";
+  if (defined $sumfile2)
+  {
+    print "Targets from '".$sumfile2->filename ()."':\n";
+    print "  ".join (", ", @targets2)."\n";
+  }
+  exit (1);
+}
+
+#========================================================================#
+
+=pod
+
 =item B<main>
 
 Main function.  Called with no argument, returns exit status.
@@ -503,11 +567,13 @@ sub main {
   my $sort = undef;
   my $only_changed = false;
   my $show_version = false;
+  my $target_name = undef;
 
   GetOptions ("version" => \$show_version,
               "sort=s" => \$sort,
               "filter=s" => \@filters,
-              "only-changed|c" => \$only_changed);
+              "only-changed|c" => \$only_changed,
+              "target|t=s" => \$target_name);
 
   if ($show_version)
   {
@@ -542,10 +608,16 @@ sub main {
   }
 
   RunTestUtils::FilterManager::load_filters ($FILTERS_PATH);
+  my $sumfile1 = RunTestUtils::SumFile->parse ($filename);
+  my $sumfile2 = undef;
+  if (defined $filename_2)
+  {
+    $sumfile2 = RunTestUtils::SumFile->parse ($filename_2);
+  }
 
-  my $results_1 = process_file ($filename);
-  my $results_2 = undef;
-  $results_2 = process_file ($filename_2) if (defined $filename_2);
+  my $target = find_target_name ($sumfile1, $sumfile2, $target_name);
+  my $results_1 = process_file ($sumfile1, $target);
+  my $results_2 = process_file ($sumfile2, $target);
 
   my @status_types = ();
   foreach (@all_possible_status_types)
